@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#000000" />
+    <title>Offline · SyllabusOS</title>
+    <link rel="icon" href="/icons/icon-192.png" type="image/png" />
+    <style>
+      :root { color-scheme: dark; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: #000;
+        color: #f1f0f6;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      main { max-width: 360px; display: flex; flex-direction: column; gap: 16px; }
+      img { width: 56px; height: 56px; border-radius: 14px; }
+      h1 { margin: 0; font-size: 24px; line-height: 1.2; }
+      p { margin: 0; color: #9d9ca3; line-height: 1.5; }
+      button {
+        align-self: flex-start;
+        font: inherit;
+        font-weight: 600;
+        color: #fff;
+        background: #e2201f;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 22px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      button:focus-visible { outline: 2px solid #f04241; outline-offset: 2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>You're offline</h1>
+      <p>SyllabusOS needs a connection to plan your next session and talk to the tutor. Your progress is saved on the server, so nothing is lost.</p>
+      <button type="button" id="retry">Try again</button>
+    </main>
+    <script>
+      document.getElementById("retry").addEventListener("click", () => location.reload());
+      window.addEventListener("online", () => location.reload());
+    </script>
+  </body>
+</html>

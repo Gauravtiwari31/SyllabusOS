@@ -1,0 +1,4 @@
+lib/generated
+pnpm-lock.yaml
+.next
+node_modules

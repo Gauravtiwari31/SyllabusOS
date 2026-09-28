@@ -1,0 +1,335 @@
+// SyllabusOS data model. See idea.md §6.
+// Units are a string grouping on Concept; prerequisite edges live in ConceptEdge
+// (fromConceptId = prerequisite, toConceptId = the concept it unlocks).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String   @unique
+  image     String?
+  isGuest   Boolean  @default(false)
+  hinglish  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  goals    Goal[]
+  attempts Attempt[]
+}
+
+enum GoalStatus {
+  draft // created, concept graph not confirmed yet
+  diagnosing // graph confirmed, diagnostic not finished
+  active // diagnostic done, full loop running
+}
+
+model Goal {
+  id            String     @id @default(cuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject       String
+  examDate      DateTime
+  minutesPerDay Int
+  status        GoalStatus @default(draft)
+  isDemo        Boolean    @default(false)
+  // ISO dates (yyyy-mm-dd) the student chose to skip; planner re-plans around them.
+  skipDates     String[]   @default([])
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  concepts      Concept[]
+  edges         ConceptEdge[]
+  resources     Resource[]
+  questions     Question[]
+  sessions      Session[]
+  mistakes      Mistake[]
+  masteryEvents MasteryEvent[]
+  chunks        Chunk[]
+
+  @@index([userId])
+}
+
+enum WeightageSource {
+  pyq
+  estimated
+}
+
+model Concept {
+  id              String          @id @default(cuid())
+  goalId          String
+  goal            Goal            @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  name            String
+  description     String?
+  unit            String
+  order           Int             @default(0)
+  // Share of exam marks, 0..1. Shares across a goal sum to ~1.
+  weightage       Float           @default(0)
+  weightageSource WeightageSource @default(estimated)
+  // Raw PYQ marks mapped to this concept (null when estimated).
+  pyqMarks        Float?
+  estMinutes      Int             @default(30)
+  createdAt       DateTime        @default(now())
+
+  mastery   Mastery?
+  prereqs   ConceptEdge[]  @relation("EdgeTo")
+  unlocks   ConceptEdge[]  @relation("EdgeFrom")
+  questions Question[]
+  sessions  Session[]
+  mistakes  Mistake[]
+  events    MasteryEvent[]
+  chunks    Chunk[]
+
+  @@index([goalId])
+}
+
+model ConceptEdge {
+  id            String  @id @default(cuid())
+  goalId        String
+  goal          Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  fromConceptId String
+  from          Concept @relation("EdgeFrom", fields: [fromConceptId], references: [id], onDelete: Cascade)
+  toConceptId   String
+  to            Concept @relation("EdgeTo", fields: [toConceptId], references: [id], onDelete: Cascade)
+
+  @@unique([fromConceptId, toConceptId])
+  @@index([goalId])
+}
+
+model Mastery {
+  conceptId       String    @id
+  concept         Concept   @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  // Elo-lite skill in logits; displayed as sigmoid(theta).
+  theta           Float     @default(0)
+  // Weighted evidence count (quiz = 1, socratic = 0.5, unit prior = 0.3).
+  evidenceCount   Float     @default(0)
+  lastPracticedAt DateTime?
+  updatedAt       DateTime  @updatedAt
+}
+
+enum QuestionType {
+  mcq
+  numeric
+  short
+}
+
+enum QuestionSource {
+  diagnostic
+  practice
+  check
+  pyq
+}
+
+model Question {
+  id          String         @id @default(cuid())
+  goalId      String
+  goal        Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  // Null for unit-level diagnostic questions (see `unit`).
+  conceptId   String?
+  concept     Concept?       @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  unit        String?
+  type        QuestionType
+  body        String
+  options     Json? // string[] for mcq
+  answer      String // mcq: option index as string ("0".."3"); numeric: number as string; short: model answer
+  explanation String?
+  difficulty  Float          @default(0) // logits, roughly -2..2
+  source      QuestionSource
+  // PYQ metadata
+  marks       Float?
+  year        Int?
+  verified    Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+
+  attempts Attempt[]
+
+  @@index([goalId, source])
+  @@index([conceptId])
+}
+
+model Attempt {
+  id             String   @id @default(cuid())
+  questionId     String
+  question       Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessionId      String?
+  session        Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  response       String
+  outcome        Float // 1 | 0.5 | 0
+  misconception  String?
+  evidenceWeight Float    @default(1)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+  @@index([questionId])
+}
+
+enum SessionStatus {
+  active
+  checking // tutor dialogue done, answering check questions
+  completed
+  abandoned
+}
+
+model Session {
+  id            String        @id @default(cuid())
+  goalId        String
+  goal          Goal          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  conceptId     String
+  concept       Concept       @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  plannedMin    Int
+  actualMin     Int?
+  masteryBefore Float // display mastery 0..1 at start
+  masteryAfter  Float?
+  status        SessionStatus @default(active)
+  // Hint-ladder position: probe | hint1 | hint2 | worked_step | check
+  stage         String        @default("probe")
+  // Consecutive failed student replies at the current stage.
+  failCount     Int           @default(0)
+  // Consecutive correct replies (see lib/tutor/ladder.ts).
+  correctStreak Int           @default(0)
+  // Why this concept was picked (reason string from the priority engine).
+  reason        String?
+  createdAt     DateTime      @default(now())
+  completedAt   DateTime?
+
+  turns    TutorTurn[]
+  attempts Attempt[]
+
+  @@index([goalId])
+}
+
+model TutorTurn {
+  id            String   @id @default(cuid())
+  sessionId     String
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role          String // "student" | "tutor"
+  content       String
+  stage         String?
+  evaluation    String? // correct | partial | wrong | not_applicable
+  misconception String?
+  // [{ file, page }] citations, or [] with notFoundInNotes = true
+  sources       Json?
+  notInNotes    Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+enum MistakeSource {
+  diagnostic
+  quiz
+  socratic
+  check
+}
+
+model Mistake {
+  id            String        @id @default(cuid())
+  goalId        String
+  goal          Goal          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  conceptId     String
+  concept       Concept       @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  source        MistakeSource
+  prompt        String // question / tutor prompt the student answered
+  response      String
+  // Short normalised label, e.g. "confuses conflict with view serializability"
+  misconception String?
+  // Filled by "Explain My Mistake" (P1)
+  explanation   String?
+  resolved      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+
+  @@index([goalId, conceptId])
+}
+
+enum MasteryEventSource {
+  diagnostic
+  quiz
+  socratic
+  check
+  decay
+}
+
+// Every mastery change, for the trend chart and before/after views.
+model MasteryEvent {
+  id          String             @id @default(cuid())
+  goalId      String
+  goal        Goal               @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  conceptId   String
+  concept     Concept            @relation(fields: [conceptId], references: [id], onDelete: Cascade)
+  thetaBefore Float
+  thetaAfter  Float
+  source      MasteryEventSource
+  isDemo      Boolean            @default(false) // seeded history, labelled in UI
+  createdAt   DateTime           @default(now())
+
+  @@index([goalId, createdAt])
+}
+
+enum ResourceKind {
+  syllabus
+  notes
+  pyq
+}
+
+enum ResourceStatus {
+  uploaded
+  processing
+  ready
+  failed
+}
+
+model Resource {
+  id        String         @id @default(cuid())
+  goalId    String
+  goal      Goal           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  kind      ResourceKind
+  fileName  String
+  blobUrl   String?
+  status    ResourceStatus @default(uploaded)
+  pages     Int?
+  error     String?
+  createdAt DateTime       @default(now())
+
+  chunks Chunk[]
+
+  @@index([goalId])
+}
+
+model Chunk {
+  id         String                     @id @default(cuid())
+  resourceId String
+  resource   Resource                   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  goalId     String
+  goal       Goal                       @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  conceptId  String?
+  concept    Concept?                   @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  page       Int
+  text       String
+  // Gemini embedding, 768 dims. Null when no API key (keyword retrieval fallback).
+  // The HNSW index (Chunk_embedding_hnsw_idx, created in the init migration) can't be
+  // expressed in this schema, so `prisma migrate dev` always generates a
+  // `DROP INDEX "Chunk_embedding_hnsw_idx"` — delete that line from every new migration.
+  embedding  Unsupported("vector(768)")?
+  createdAt  DateTime                   @default(now())
+
+  @@index([goalId, conceptId])
+  @@index([resourceId])
+}
+
+// Fixed-window request counters for abuse protection (lib/rate-limit.ts).
+// Postgres-backed so limits hold across serverless instances. key = "<bucket>:<subject>".
+model RateLimit {
+  key         String   @id
+  windowStart DateTime @default(now())
+  count       Int      @default(0)
+
+  @@index([windowStart])
+}

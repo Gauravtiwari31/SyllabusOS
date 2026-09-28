@@ -1,0 +1,306 @@
+/*
+  Concept graph — NThing UI skin for React Flow. Everything is scoped under .sos-graph
+  and reads the theme tokens from app/globals.css, so dark (default) and .light both work.
+  Band recolouring transitions once, with a per-node delay (--sos-delay) so the graph
+  recolours left → right after the diagnostic. Nothing loops.
+*/
+
+.sos-graph {
+  --sos-edge: color-mix(in oklab, var(--foreground) 24%, transparent);
+  --sos-edge-hl: color-mix(in oklab, var(--foreground) 80%, transparent);
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.sos-graph .react-flow {
+  --xy-background-color: transparent;
+  --xy-node-color: var(--foreground);
+  --xy-node-border-radius: 14px;
+  --xy-node-boxshadow-hover: none;
+  --xy-node-boxshadow-selected: none;
+  --xy-edge-stroke: var(--sos-edge);
+  --xy-edge-stroke-width: 1;
+  --xy-edge-stroke-selected: var(--sos-edge-hl);
+  --xy-handle-background-color: transparent;
+  --xy-handle-border-color: transparent;
+  --xy-controls-box-shadow: none;
+  --xy-controls-button-background-color: var(--nu-tile);
+  --xy-controls-button-background-color-hover: var(--accent);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-color-hover: var(--foreground);
+  --xy-controls-button-border-color: var(--nu-line);
+  --xy-minimap-background-color: var(--nu-tile);
+  --xy-minimap-mask-background-color: color-mix(in oklab, var(--background) 55%, transparent);
+  --xy-minimap-mask-stroke-color: var(--nu-line);
+  --xy-minimap-mask-stroke-width: 1;
+  --xy-minimap-node-stroke-color: transparent;
+  --xy-attribution-background-color: transparent;
+  --xy-selection-background-color: var(--nu-accent-muted);
+  --xy-selection-border: 1px dotted var(--nu-accent);
+  background: transparent;
+}
+
+/* ── Nodes ─────────────────────────────────────────────────────────────── */
+.sos-graph .react-flow__node {
+  border-radius: 14px;
+}
+.sos-graph--click .react-flow__node {
+  cursor: pointer;
+}
+.sos-graph .react-flow__node:focus-visible {
+  outline: none;
+}
+.sos-graph .react-flow__node:focus-visible .sos-node {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.sos-graph .react-flow__handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.sos-node {
+  --sos-band: var(--nu-unknown);
+  --sos-delay: 0ms;
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 9px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--sos-band) 62%, transparent);
+  background-color: color-mix(in oklab, var(--sos-band) 8%, var(--nu-tile));
+  color: var(--foreground);
+  transition:
+    border-color 700ms ease var(--sos-delay),
+    background-color 700ms ease var(--sos-delay);
+}
+.sos-node[data-band="unknown"] {
+  border-color: var(--nu-unknown);
+  background-color: var(--nu-tile);
+}
+/* Low / no confidence → dashed outline: we never present a 1-question guess as fact. */
+.sos-node--unsure {
+  border-style: dashed;
+}
+.sos-node--compact {
+  padding: 7px 10px 8px;
+  gap: 3px;
+  border-radius: 12px;
+}
+.sos-graph--click .sos-node:hover {
+  outline: 1px solid color-mix(in oklab, var(--foreground) 40%, transparent);
+  outline-offset: 2px;
+}
+/* Recommended / selected concept: accent ring + live red dot. */
+.sos-node--hl,
+.sos-graph--click .sos-node--hl:hover {
+  outline: 2px solid var(--nu-accent);
+  outline-offset: 3px;
+}
+.sos-node__live {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--nu-tile);
+  box-sizing: content-box;
+}
+
+.sos-node__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.sos-node__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background-color: var(--sos-band);
+  border: 1.5px solid var(--sos-band);
+  box-sizing: border-box;
+  transition:
+    background-color 700ms ease var(--sos-delay),
+    border-color 700ms ease var(--sos-delay);
+}
+.sos-node[data-band="unknown"] .sos-node__dot {
+  background-color: transparent;
+  border-style: dashed;
+}
+.sos-node__pct {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.sos-node[data-band="unknown"] .sos-node__pct {
+  color: var(--nu-dim);
+}
+.sos-node__unit {
+  margin-left: auto;
+  max-width: 88px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--nu-dim);
+}
+.sos-node--compact .sos-node__unit,
+.sos-node--compact .sos-node__weight {
+  display: none;
+}
+.sos-node__name {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.sos-node--compact .sos-node__name {
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+.sos-node__weight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sos-node__bar {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+.sos-node__seg {
+  height: 3px;
+  flex: 1;
+  border-radius: 999px;
+  background: var(--nu-line);
+}
+.sos-node__seg--on {
+  background: color-mix(in oklab, var(--foreground) 72%, transparent);
+}
+.sos-node__w {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--nu-dim);
+  white-space: nowrap;
+}
+
+/* ── Edges ─────────────────────────────────────────────────────────────── */
+.sos-graph .react-flow__edge-path {
+  stroke-width: 1;
+  transition: stroke 400ms ease;
+}
+.sos-graph .react-flow__edge.sos-edge--hl .react-flow__edge-path {
+  stroke: var(--sos-edge-hl);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-dasharray: 2 4;
+}
+
+/* ── Controls / minimap / attribution ─────────────────────────────────── */
+.sos-graph .react-flow__controls {
+  border: 1px solid var(--nu-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.sos-graph .react-flow__controls-button {
+  width: 32px;
+  height: 32px;
+  border-bottom: 1px solid var(--nu-line);
+}
+.sos-graph .react-flow__controls-button:last-child {
+  border-bottom: 0;
+}
+/* Full screen: the canvas fills the screen on the page background. */
+.sos-graph--full {
+  background: var(--background);
+}
+.sos-graph .react-flow__controls-button svg {
+  fill: currentColor;
+  max-width: 11px;
+  max-height: 11px;
+}
+/* lucide icons are stroked, not filled */
+.sos-graph .react-flow__controls-button svg.lucide {
+  fill: none;
+  stroke: currentColor;
+  max-width: 13px;
+  max-height: 13px;
+}
+.sos-graph .react-flow__minimap {
+  border: 1px solid var(--nu-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.sos-graph .react-flow__attribution {
+  padding: 2px 8px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  opacity: 0.45;
+}
+.sos-graph .react-flow__attribution a {
+  color: var(--nu-dim);
+}
+@media (max-width: 767px) {
+  .sos-graph .react-flow__minimap {
+    display: none;
+  }
+}
+
+/* ── Legend ────────────────────────────────────────────────────────────── */
+.sos-graph__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  max-width: min(100%, 560px);
+  padding: 7px 12px;
+  border: 1px solid var(--nu-line);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--nu-tile) 88%, transparent);
+}
+@media (max-width: 480px) {
+  .sos-graph__legend {
+    border-radius: 14px;
+  }
+}
+
+@media (pointer: coarse) {
+  .sos-graph .react-flow__controls-button {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sos-node,
+  .sos-node__dot,
+  .sos-graph .react-flow__edge-path {
+    transition: none;
+  }
+}

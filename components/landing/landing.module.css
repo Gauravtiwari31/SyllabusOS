@@ -1,0 +1,33 @@
+/* Landing-only styles. Static by default; the hero headline fades in once, and only when
+   the visitor has not asked for reduced motion. Nothing loops. */
+
+.rise {
+  display: block;
+}
+
+/* Hero graph: the "study now" node (static highlight). */
+.target {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    animation: rise 400ms ease-out both;
+  }
+  .rise:nth-child(2) {
+    animation-delay: 60ms;
+  }
+  .rise:nth-child(3) {
+    animation-delay: 120ms;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
