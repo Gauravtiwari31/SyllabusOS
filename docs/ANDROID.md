@@ -7,7 +7,7 @@ Already prepared in the code:
 | What | Where |
 |---|---|
 | Web app manifest (name, colours, start page, shortcuts) | `app/manifest.ts` → `/manifest.webmanifest` |
-| Icons (192/512, maskable 192/512, Apple 180) | `public/icons/` |
+| Icons (192/512, maskable 192/512) and favicon | `public/icons/`, `app/icon.svg`, `app/apple-icon.png` |
 | Offline screen and service worker | `public/offline.html`, `public/sw.js` |
 | Digital Asset Links, built from env vars | `/.well-known/assetlinks.json` → `app/api/android/assetlinks/route.ts` |
 | Keystore and build output ignored by git | `.gitignore` (`android/*.keystore`, `*.apk`, `*.aab`) |

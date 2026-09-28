@@ -1,7 +1,7 @@
 // SyllabusOS service worker: offline fallback only.
 // Pages are personal and change after every answer, so nothing else is cached — a navigation
 // that fails because the device is offline gets /offline.html instead of the browser error.
-const CACHE = "sos-offline-v2";
+const CACHE = "sos-offline-v3";
 const OFFLINE_URL = "/offline.html";
 
 self.addEventListener("install", (event) => {

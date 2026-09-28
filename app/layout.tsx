@@ -43,7 +43,6 @@ export const metadata: Metadata = {
     "Upload your syllabus, notes and previous-year papers. SyllabusOS finds your weak concepts, decides what to study next and why, then teaches it Socratically.",
   applicationName: "SyllabusOS",
   appleWebApp: { capable: true, title: "SyllabusOS", statusBarStyle: "black-translucent" },
-  icons: { apple: "/icons/apple-touch-icon.png" },
 };
 
 // Status-bar colour for the installed app / Android TWA, and edge-to-edge on notched phones.
