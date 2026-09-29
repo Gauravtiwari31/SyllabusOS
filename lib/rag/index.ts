@@ -8,14 +8,13 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { db } from "@/lib/db";
 import { env } from "@/lib/env";
 import { bestConceptForText } from "@/components/onboarding/model";
-import { chunkPages as chunkPagesImpl, normalizePageText, type PageText } from "./chunk";
+import { capPageTexts, chunkPages as chunkPagesImpl, MAX_PDF_PAGES, type PageText } from "./chunk";
 import { bm25Scores } from "./keyword";
 
 export type { PageText } from "./chunk";
+export { MAX_PDF_CHARS, MAX_PDF_PAGES } from "./chunk";
 
 export const EMBED_DIM = 768;
-export const MAX_PDF_PAGES = 300;
-export const MAX_PDF_CHARS = 400_000;
 export const MAX_CHUNKS_PER_RESOURCE = 600;
 /** Rows scanned by the keyword fallback. */
 const KEYWORD_SCAN = 400;
@@ -38,14 +37,7 @@ export async function extractPdfPages(bytes: Uint8Array): Promise<PageText[]> {
     throw new Error(`That PDF has ${pdf.numPages} pages; the limit is ${MAX_PDF_PAGES}.`);
   }
   const { text } = await extractText(pdf, { mergePages: false });
-  const pages: PageText[] = [];
-  let total = 0;
-  for (let i = 0; i < text.length && total < MAX_PDF_CHARS; i++) {
-    const clean = normalizePageText(text[i] ?? "").slice(0, MAX_PDF_CHARS - total);
-    total += clean.length;
-    if (clean) pages.push({ page: i + 1, text: clean });
-  }
-  return pages;
+  return capPageTexts(text.map((t, i) => ({ page: i + 1, text: t ?? "" })));
 }
 
 /** Split pages into ~targetTokens chunks, never crossing a page boundary (keeps citations exact). */

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { blobEnabled } from "@/lib/env";
 import { aiMode, extractSyllabus, mapPyqs, type ConceptRef } from "@/lib/ai";
 import { extractPdfPages, indexNotes } from "@/lib/rag";
+import { capPageTexts, MAX_PDF_PAGES, type PageText } from "@/lib/rag/chunk";
 import { daysUntil } from "@/lib/services/core";
 import type { Goal } from "@/lib/generated/prisma/client";
 import type { DraftGraph } from "@/lib/ai/schemas";
@@ -44,10 +45,12 @@ export class OnboardingError extends Error {
   }
 }
 
-/** A validated upload: PDF bytes or pasted text (exactly one is set). */
+/** A validated upload: PDF bytes, a PDF's text read on the device, or pasted text (exactly one is set). */
 export interface UploadInput {
   /** `blobUrl` is set when the browser already stored the PDF in Vercel Blob (direct upload). */
   file?: { name: string; bytes: Uint8Array; blobUrl?: string };
+  /** Page text of a PDF over the upload cap, read on the student's device with PDF.js. */
+  pdfText?: { name: string; pages: PageText[] };
   text?: string;
 }
 
@@ -229,12 +232,17 @@ export const MAX_NOTES_PER_GOAL = 10;
 
 /**
  * Validate an upload before any parsing (defence in depth: the server actions check too).
- * Exactly one of file/text; PDFs by magic bytes (the browser's MIME type is not trusted).
+ * Exactly one of file/pdfText/text; PDFs by magic bytes (the browser's MIME type is not
+ * trusted); device-read pages re-normalised and capped like server-side extraction.
  */
 function checkUpload(input: UploadInput, kind: keyof typeof MAX_TEXT_CHARS): UploadInput {
-  const hasFile = Boolean(input.file);
-  const hasText = Boolean(input.text?.trim());
-  if (hasFile === hasText) throw new OnboardingError("Upload a PDF or paste text (one of the two).");
+  const given = [Boolean(input.file), Boolean(input.pdfText), Boolean(input.text?.trim())].filter(Boolean).length;
+  if (given !== 1) throw new OnboardingError("Upload a PDF or paste text (one of the two).");
+  if (input.pdfText) {
+    const pages = capPageTexts(input.pdfText.pages.slice(0, MAX_PDF_PAGES));
+    if (pages.length === 0) throw new OnboardingError("No selectable text in this PDF (is it a scan?). Paste the text instead.");
+    return { pdfText: { name: safeFileName(input.pdfText.name, `${kind}.pdf`), pages } };
+  }
   if (input.file) {
     const { bytes } = input.file;
     if (bytes.byteLength === 0) throw new OnboardingError("That file is empty.");
@@ -249,6 +257,16 @@ function checkUpload(input: UploadInput, kind: keyof typeof MAX_TEXT_CHARS): Upl
     throw new OnboardingError(`That text is too long (max ${MAX_TEXT_CHARS[kind].toLocaleString("en-IN")} characters).`);
   }
   return { text };
+}
+
+/** Resource file name for a validated upload. */
+function uploadName(input: UploadInput, pasted: string): string {
+  return input.file?.name ?? input.pdfText?.name ?? pasted;
+}
+
+/** Text for the AI steps: pasted text, or a device-read PDF's pages. */
+function uploadText(input: UploadInput): string | undefined {
+  return input.text ?? input.pdfText?.pages.map((p) => p.text).join("\n\n");
 }
 
 /** Blob folder for one goal's PDFs of one kind. Direct uploads are only accepted from here. */
@@ -369,7 +387,7 @@ export async function runSyllabusExtraction(goal: Goal, rawInput: UploadInput): 
     data: {
       goalId: goal.id,
       kind: "syllabus",
-      fileName: input.file?.name ?? "pasted-syllabus.txt",
+      fileName: uploadName(input, "pasted-syllabus.txt"),
       status: "processing",
     },
     select: { id: true },
@@ -377,7 +395,7 @@ export async function runSyllabusExtraction(goal: Goal, rawInput: UploadInput): 
 
   const blobUrl = archivePdf(goal.id, "syllabus", input.file);
   try {
-    const raw = await extractSyllabus({ subject: goal.subject, pdf: input.file?.bytes, text: input.text });
+    const raw = await extractSyllabus({ subject: goal.subject, pdf: input.file?.bytes, text: uploadText(input) });
     const { draft, fixes } = sanitizeDraft({ ...raw, subject: raw.subject || goal.subject });
     if (draft.concepts.length === 0) {
       throw new OnboardingError("No concepts found in that syllabus. Paste the topic list as text and try again.");
@@ -506,7 +524,7 @@ export async function runPyqMapping(goal: Goal, rawInput: UploadInput): Promise<
   });
   if (concepts.length === 0) throw new OnboardingError("Confirm your concept graph first.");
 
-  const fileName = input.file?.name ?? "pasted-pyqs.txt";
+  const fileName = uploadName(input, "pasted-pyqs.txt");
   const resource = await db.resource.create({
     data: { goalId: goal.id, kind: "pyq", fileName, status: "processing" },
     select: { id: true },
@@ -515,7 +533,7 @@ export async function runPyqMapping(goal: Goal, rawInput: UploadInput): Promise<
 
   try {
     const refs: ConceptRef[] = concepts;
-    const result = await mapPyqs({ pdf: input.file?.bytes, text: input.text, concepts: refs });
+    const result = await mapPyqs({ pdf: input.file?.bytes, text: uploadText(input), concepts: refs });
     const valid = new Set(concepts.map((c) => c.id));
     const questions = result.questions
       .filter((q) => q.text.trim().length > 0)
@@ -596,7 +614,7 @@ export async function runNotesUpload(goal: Goal, rawInput: UploadInput): Promise
   if (existing >= MAX_NOTES_PER_GOAL) {
     throw new OnboardingError(`You can attach up to ${MAX_NOTES_PER_GOAL} notes files. Remove one first.`);
   }
-  const fileName = input.file?.name ?? "pasted-notes.txt";
+  const fileName = uploadName(input, "pasted-notes.txt");
   const resource = await db.resource.create({
     data: { goalId: goal.id, kind: "notes", fileName, status: "processing" },
     select: { id: true, fileName: true, status: true, pages: true, error: true, createdAt: true },
@@ -606,11 +624,11 @@ export async function runNotesUpload(goal: Goal, rawInput: UploadInput): Promise
   try {
     const pages = input.file
       ? await extractPdfPages(input.file.bytes)
-      : splitTextIntoPages(input.text ?? "");
+      : (input.pdfText?.pages ?? splitTextIntoPages(input.text ?? ""));
     const withText = pages.filter((p) => p.text.trim().length > 0);
     if (withText.length === 0) {
       throw new OnboardingError(
-        input.file
+        input.file || input.pdfText
           ? "No selectable text in this PDF (is it a scan?). Paste the text instead."
           : "That text is empty.",
       );

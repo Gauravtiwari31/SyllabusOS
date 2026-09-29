@@ -19,6 +19,7 @@ import {
   normaliseWeightage,
   planConfirm,
   pyqWeightage,
+  readsOnDevice,
   resumeStep,
   safeFileName,
   sanitizeDraft,
@@ -325,16 +326,17 @@ describe("files & flow", () => {
     expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: 1000 })).toBeNull();
     expect(checkPdfMeta({ name: "a.PDF", type: "", size: 1000 })).toBeNull();
     expect(checkPdfMeta({ name: "a.docx", type: "application/msword", size: 1000 })).toMatch(/isn't a PDF/);
-    expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: MAX_UPLOAD_BYTES + 1 })).toMatch(/20 MB/);
+    expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: 500 * 1024 * 1024 })).toBeNull();
     expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: 0 })).toMatch(/empty/);
   });
 
-  it("caps PDFs by upload path (direct to Blob vs in the action body)", () => {
+  it("reads PDFs over the file-upload cap on the device", () => {
     expect(uploadLimitMb(true)).toBe(20);
     expect(uploadLimitMb(false)).toBe(4);
-    const big = { name: "a.pdf", type: "application/pdf", size: MAX_INLINE_UPLOAD_BYTES + 1 };
-    expect(checkPdfMeta(big, uploadLimitMb(true))).toBeNull();
-    expect(checkPdfMeta(big, uploadLimitMb(false))).toMatch(/4 MB/);
+    expect(readsOnDevice(MAX_INLINE_UPLOAD_BYTES, false)).toBe(false);
+    expect(readsOnDevice(MAX_INLINE_UPLOAD_BYTES + 1, false)).toBe(true);
+    expect(readsOnDevice(MAX_INLINE_UPLOAD_BYTES + 1, true)).toBe(false);
+    expect(readsOnDevice(MAX_UPLOAD_BYTES + 1, true)).toBe(true);
   });
 
   it("makes URL-safe Blob file names", () => {

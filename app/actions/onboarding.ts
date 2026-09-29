@@ -2,8 +2,9 @@
 // Onboarding actions: create a goal, syllabus → draft graph → confirm, PYQ weightage, notes.
 // Thin wrappers: zod-validated primitives in, requireGoal ownership check, rate limits on the
 // AI-heavy steps, upload checks (size, PDF magic bytes, text caps) BEFORE any parsing, and
-// ActionResult out — raw errors are logged, never sent to the client. PDFs arrive either in the
-// body (up to 4 MB) or, with Vercel Blob, as the URL of a direct browser upload (up to 20 MB).
+// ActionResult out — raw errors are logged, never sent to the client. PDFs arrive in the body
+// (up to 4 MB), as the URL of a direct browser → Vercel Blob upload (up to 20 MB), or, when
+// larger, as page text read on the device with PDF.js (any size; page/char caps apply).
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
@@ -28,6 +29,7 @@ import {
 } from "@/lib/services/onboarding";
 import { addDaysIso, examDateFromIso, makeGoalSchema } from "@/components/onboarding/goal-schema";
 import { isPdfBytes, MAX_INLINE_UPLOAD_BYTES, MAX_INLINE_UPLOAD_MB } from "@/components/onboarding/model";
+import { MAX_PDF_CHARS, MAX_PDF_PAGES } from "@/lib/rag/chunk";
 import type { ActionResult } from "@/lib/types";
 import type {
   ConfirmResult,
@@ -41,6 +43,11 @@ import type {
 const MAX_GOALS_PER_USER = 10;
 const Id = z.string().trim().min(1).max(64);
 const Kind = z.enum(["syllabus", "pyq", "notes"]);
+/** Page text of a PDF read on the device (UploadField); capped again in checkUpload. */
+const DevicePages = z
+  .array(z.object({ page: z.number().int().min(1).max(MAX_PDF_PAGES), text: z.string().max(MAX_PDF_CHARS) }))
+  .min(1)
+  .max(MAX_PDF_PAGES);
 
 function fail(err: unknown, fallback: string): { ok: false; error: string } {
   unstable_rethrow(err); // let redirect()/notFound() through
@@ -51,15 +58,27 @@ function fail(err: unknown, fallback: string): { ok: false; error: string } {
 
 /**
  * FormData → validated UploadInput. Throws OnboardingError. One of: "blobUrl" (+ "fileName") of a
- * direct upload to Vercel Blob, "file" (a PDF in the body), or "text".
+ * direct upload to Vercel Blob, "pages" (+ "fileName", JSON) read on the device, "file" (a PDF
+ * in the body), or "text".
  */
 async function readUpload(form: FormData, goalId: string, kind: UploadKind): Promise<UploadInput> {
   const blobUrl = form.get("blobUrl");
+  const pages = form.get("pages");
   const file = form.get("file");
   const text = form.get("text");
+  const nameField = form.get("fileName");
+  const fileName = typeof nameField === "string" ? nameField : "";
   if (typeof blobUrl === "string" && blobUrl) {
-    const fileName = form.get("fileName");
-    return { file: await loadDirectUpload(goalId, kind, blobUrl, typeof fileName === "string" ? fileName : "") };
+    return { file: await loadDirectUpload(goalId, kind, blobUrl, fileName) };
+  }
+  if (typeof pages === "string" && pages) {
+    let json: unknown = null;
+    try {
+      json = JSON.parse(pages);
+    } catch {}
+    const parsed = DevicePages.safeParse(json);
+    if (!parsed.success) throw new OnboardingError("Couldn't read that PDF. Try again, or paste the text instead.");
+    return { pdfText: { name: fileName, pages: parsed.data } };
   }
   if (file instanceof File && file.size > 0) {
     if (file.size > MAX_INLINE_UPLOAD_BYTES) {

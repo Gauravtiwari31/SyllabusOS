@@ -1,8 +1,9 @@
 "use client";
-// PDF dropzone or pasted text → FormData for the onboarding actions: "text", "file" (PDF in the
-// body, 4 MB) or, when Vercel Blob is set up, "blobUrl" + "fileName" after the PDF was uploaded
-// straight from the browser to Blob (20 MB; it never passes through a function).
-// Size/type are checked here for fast feedback and again on the server (magic bytes).
+// PDF dropzone or pasted text → FormData for the onboarding actions: "text"; "file" (PDF in the
+// body, up to 4 MB) or, when Vercel Blob is set up, "blobUrl" + "fileName" after the PDF was
+// uploaded straight from the browser to Blob (up to 20 MB); or, for PDFs over that cap,
+// "pages" + "fileName": the text read on this device with PDF.js, so any size works.
+// Type is checked here for fast feedback and again on the server (magic bytes / page caps).
 import { useId, useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
 import { put } from "@vercel/blob/client";
@@ -11,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DotLoader } from "@/components/nu";
 import { cn } from "@/lib/utils";
-import { checkPdfMeta, uploadLimitMb } from "./model";
+import { checkPdfMeta, readsOnDevice, uploadLimitMb } from "./model";
+import { PdfReadError, readPdfPages } from "./pdf-text";
 import type { UploadKind } from "./types";
 
 export function UploadField({
@@ -44,24 +46,45 @@ export function UploadField({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
-  /** Percent of a direct upload in flight; null when idle. */
-  const [progress, setProgress] = useState<number | null>(null);
+  /** Progress of reading or uploading a PDF before the action runs; null when idle. */
+  const [status, setStatus] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
   const maxMb = uploadLimitMb(directUploads);
-  const busy = pending || progress !== null;
+  const busy = pending || status !== null;
+  const onDevice = file !== null && readsOnDevice(file.size, directUploads);
 
   const pick = (f: File | null | undefined) => {
     if (!f) return;
-    const problem = checkPdfMeta(f, maxMb);
+    const problem = checkPdfMeta(f);
     setError(problem);
     setFile(problem ? null : f);
+  };
+
+  /** Page text read here with PDF.js (JSON), or null after showing an error. */
+  const readOnDevice = async (f: File): Promise<string | null> => {
+    setError(null);
+    setStatus("Opening PDF");
+    try {
+      const pages = await readPdfPages(f, (page, total) => setStatus(`Reading page ${page} of ${total}`));
+      if (pages.length === 0) {
+        setError(`"${f.name}" has no selectable text (is it a scan?). Scans can be up to ${maxMb} MB: split it, or paste the text instead.`);
+        return null;
+      }
+      return JSON.stringify(pages);
+    } catch (err) {
+      if (!(err instanceof PdfReadError)) console.error("[upload] reading the PDF failed", err);
+      setError(err instanceof PdfReadError ? err.message : "Couldn't read that PDF on this device. Paste the text instead.");
+      return null;
+    } finally {
+      setStatus(null);
+    }
   };
 
   /** Browser → Vercel Blob with a short-lived token; returns the blob URL, or null after showing an error. */
   const uploadDirect = async (f: File): Promise<string | null> => {
     setError(null);
-    setProgress(0);
+    setStatus("Uploading 0%");
     try {
       const t = await createUploadTokenAction(goalId, kind, f.name);
       if (!t.ok) {
@@ -72,7 +95,7 @@ export function UploadField({
         access: t.data.access,
         token: t.data.token,
         contentType: "application/pdf",
-        onUploadProgress: (e) => setProgress(Math.round(e.percentage)),
+        onUploadProgress: (e) => setStatus(`Uploading ${Math.round(e.percentage)}%`),
       });
       return blob.url;
     } catch (err) {
@@ -80,7 +103,7 @@ export function UploadField({
       setError("The upload didn't finish. Check your connection and try again.");
       return null;
     } finally {
-      setProgress(null);
+      setStatus(null);
     }
   };
 
@@ -88,7 +111,12 @@ export function UploadField({
     const form = new FormData();
     if (mode === "pdf") {
       if (!file) return setError("Choose a PDF first.");
-      if (directUploads) {
+      if (onDevice) {
+        const pages = await readOnDevice(file);
+        if (!pages) return;
+        form.set("pages", pages);
+        form.set("fileName", file.name);
+      } else if (directUploads) {
         const url = await uploadDirect(file);
         if (!url) return;
         form.set("blobUrl", url);
@@ -138,7 +166,9 @@ export function UploadField({
             <FileText className="size-5 shrink-0 text-muted-foreground" aria-hidden />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{file.name}</p>
-              <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
+              <p className="text-xs text-muted-foreground">
+                {(file.size / 1024 / 1024).toFixed(1)} MB{onDevice && " · large file: its text is read on this device"}
+              </p>
             </div>
             <Button type="button" size="icon" variant="ghost" aria-label="Remove file" onClick={() => setFile(null)} disabled={busy}>
               <X className="size-4" />
@@ -165,7 +195,7 @@ export function UploadField({
             <Upload className="size-5 text-muted-foreground" aria-hidden />
             <span className="text-sm font-medium">{label}</span>
             <span className="text-xs text-muted-foreground">
-              PDF up to {maxMb} MB · drag it here or tap to choose
+              PDF of any size · drag it here or tap to choose
             </span>
             <input
               ref={inputRef}
@@ -199,8 +229,8 @@ export function UploadField({
         </p>
       )}
       <Button type="button" className="self-start" onClick={() => void submit()} disabled={busy}>
-        {progress !== null ? (
-          <DotLoader label={`Uploading ${progress}%`} />
+        {status !== null ? (
+          <DotLoader label={status} />
         ) : pending ? (
           <DotLoader label={pendingLabel} />
         ) : (

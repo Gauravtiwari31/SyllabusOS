@@ -30,6 +30,26 @@ export function normalizePageText(text: string): string {
     .trim();
 }
 
+/** PDFs are read up to these caps, whether on the server or on the student's device. */
+export const MAX_PDF_PAGES = 300;
+export const MAX_PDF_CHARS = 400_000;
+
+/**
+ * Raw per-page PDF text → normalised pages, empty pages dropped, stopping at MAX_PDF_CHARS.
+ * Used for server-side extraction and, again on the server, for pages read on the device.
+ */
+export function capPageTexts(raw: PageText[]): PageText[] {
+  const pages: PageText[] = [];
+  let total = 0;
+  for (const p of raw) {
+    if (total >= MAX_PDF_CHARS) break;
+    const clean = normalizePageText(p.text).slice(0, MAX_PDF_CHARS - total);
+    total += clean.length;
+    if (clean) pages.push({ page: p.page, text: clean });
+  }
+  return pages;
+}
+
 /** True when a chunk carries any letter (drops page-number-only and punctuation-only chunks). */
 export function hasContent(text: string): boolean {
   return /\p{L}/u.test(text);

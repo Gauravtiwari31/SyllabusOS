@@ -50,7 +50,7 @@ Add these for **Production** and **Preview** before the first deploy:
 | `GEMINI_MODEL_FALLBACK` | `gemini-3.1-flash-lite,gemini-3.5-flash-lite` |
 | `GEMINI_EMBED_MODEL` | `gemini-embedding-001` |
 
-Recommended: **Storage → Create → Blob** with **Private** access, then connect the store to this project. Vercel adds `BLOB_READ_WRITE_TOKEN`, and PDFs then upload from the browser straight to Blob (up to 20 MB); the originals stay private. Without it, PDFs go through the server and are capped at 4 MB.
+Recommended: **Storage → Create → Blob** with **Private** access, then connect the store to this project. Vercel adds `BLOB_READ_WRITE_TOKEN`, and PDFs up to 20 MB then upload from the browser straight to Blob; the originals stay private. Without it, PDFs up to 4 MB go through the server. Larger PDFs are read on the student's device either way.
 
 Leave these out:
 - `UPSTASH_*`: not used; rate limiting runs on Postgres.
@@ -88,5 +88,5 @@ Settings → **Domains** → add it and follow the DNS steps. Then add the new o
 ## 9. After launch
 
 - **New database migrations:** when a change adds a folder under `prisma/migrations`, run `pnpm db:migrate` against Neon (step 2) before or right after that deploy.
-- **Limits:** PDFs are capped at 20 MB with Blob connected, or 4 MB without it (Vercel functions accept at most 4.5 MB per request on every plan); larger notes can be pasted as text. AI routes allow up to 60 s.
+- **Limits:** PDF files are sent as-is up to 20 MB with Blob connected, or 4 MB without it (Vercel functions accept at most 4.5 MB per request on every plan). Larger PDFs are read on the student's device with PDF.js and only the text is sent, so any size works, up to 300 pages / 400,000 characters. Scanned PDFs have no text, so they must fit the file cap (or be pasted as text). AI routes allow up to 60 s.
 - **Quick checks:** `/api/auth/providers` lists `guest` (and `google`), the response headers include `Content-Security-Policy`, and `/manifest.webmanifest` loads.
