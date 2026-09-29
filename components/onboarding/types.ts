@@ -72,6 +72,18 @@ export interface SetupState {
   pyq: PyqView | null;
   notes: NotesResourceView[];
   aiMode: AiMode;
+  /** PDFs go browser → Vercel Blob (large cap) instead of in the server-action body (4 MB). */
+  directUploads: boolean;
+}
+
+export type UploadKind = "syllabus" | "pyq" | "notes";
+
+/** Lets the browser put one PDF at `pathname` in Vercel Blob (see createUploadToken). */
+export interface UploadToken {
+  pathname: string;
+  token: string;
+  /** Must match the Blob store's access setting. */
+  access: "public" | "private";
 }
 
 export interface ExtractResult {

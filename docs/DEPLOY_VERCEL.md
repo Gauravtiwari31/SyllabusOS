@@ -50,8 +50,9 @@ Add these for **Production** and **Preview** before the first deploy:
 | `GEMINI_MODEL_FALLBACK` | `gemini-3.1-flash-lite,gemini-3.5-flash-lite` |
 | `GEMINI_EMBED_MODEL` | `gemini-embedding-001` |
 
+Recommended: **Storage → Create → Blob** with **Private** access, then connect the store to this project. Vercel adds `BLOB_READ_WRITE_TOKEN`, and PDFs then upload from the browser straight to Blob (up to 20 MB); the originals stay private. Without it, PDFs go through the server and are capped at 4 MB.
+
 Leave these out:
-- `BLOB_READ_WRITE_TOKEN`: uploads are processed in memory without it; with it, the original PDFs are stored at public (unguessable) URLs.
 - `UPSTASH_*`: not used; rate limiting runs on Postgres.
 - `AUTH_URL`: Vercel sets the host itself.
 
@@ -87,5 +88,5 @@ Settings → **Domains** → add it and follow the DNS steps. Then add the new o
 ## 9. After launch
 
 - **New database migrations:** when a change adds a folder under `prisma/migrations`, run `pnpm db:migrate` against Neon (step 2) before or right after that deploy.
-- **Limits on the Hobby plan:** uploads are capped at 4 MB per PDF (Vercel's request limit is 4.5 MB); larger notes can be pasted as text. AI routes allow up to 60 s.
+- **Limits:** PDFs are capped at 20 MB with Blob connected, or 4 MB without it (Vercel functions accept at most 4.5 MB per request on every plan); larger notes can be pasted as text. AI routes allow up to 60 s.
 - **Quick checks:** `/api/auth/providers` lists `guest` (and `google`), the response headers include `Content-Security-Policy`, and `/manifest.webmanifest` loads.

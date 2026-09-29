@@ -1,7 +1,8 @@
 // Onboarding: goal creation, syllabus → concept graph, PYQ weightage, notes grounding.
 // Server-only (not marked "server-only" so tsx scripts can import it). Pure logic lives in
 // components/onboarding/model.ts so the graph editor can reuse it on the client.
-import { del, put } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
+import { generateClientTokenFromReadWriteToken } from "@vercel/blob/client";
 import { db } from "@/lib/db";
 import { blobEnabled } from "@/lib/env";
 import { aiMode, extractSyllabus, mapPyqs, type ConceptRef } from "@/lib/ai";
@@ -13,6 +14,7 @@ import {
   MAX_UPLOAD_BYTES,
   MAX_UPLOAD_MB,
   bestConceptForText,
+  blobFileName,
   isPdfBytes,
   safeFileName,
   draftFromConcepts,
@@ -30,6 +32,8 @@ import type {
   PyqView,
   SetupConcept,
   SetupState,
+  UploadKind,
+  UploadToken,
 } from "@/components/onboarding/types";
 
 /** An error whose message is safe and useful to show to the student. */
@@ -42,7 +46,8 @@ export class OnboardingError extends Error {
 
 /** A validated upload: PDF bytes or pasted text (exactly one is set). */
 export interface UploadInput {
-  file?: { name: string; bytes: Uint8Array };
+  /** `blobUrl` is set when the browser already stored the PDF in Vercel Blob (direct upload). */
+  file?: { name: string; bytes: Uint8Array; blobUrl?: string };
   text?: string;
 }
 
@@ -212,6 +217,7 @@ export async function getSetupState(goal: Goal, now: Date = new Date()): Promise
     pyq,
     notes,
     aiMode: aiMode(),
+    directUploads: blobEnabled(),
   };
 }
 
@@ -236,7 +242,7 @@ function checkUpload(input: UploadInput, kind: keyof typeof MAX_TEXT_CHARS): Upl
       throw new OnboardingError(`That PDF is over ${MAX_UPLOAD_MB} MB. Split it, or paste the text instead.`);
     }
     if (!isPdfBytes(bytes)) throw new OnboardingError("That file isn't a PDF.");
-    return { file: { name: safeFileName(input.file.name, `${kind}.pdf`), bytes } };
+    return { file: { name: safeFileName(input.file.name, `${kind}.pdf`), bytes, blobUrl: input.file.blobUrl } };
   }
   const text = input.text ?? "";
   if (text.length > MAX_TEXT_CHARS[kind]) {
@@ -245,12 +251,93 @@ function checkUpload(input: UploadInput, kind: keyof typeof MAX_TEXT_CHARS): Upl
   return { text };
 }
 
-/** Archive the original PDF to Vercel Blob when configured. Never throws: archiving is optional. */
-async function archivePdf(goalId: string, kind: string, file: UploadInput["file"]): Promise<string | null> {
-  if (!file || !blobEnabled()) return null;
+/** Blob folder for one goal's PDFs of one kind. Direct uploads are only accepted from here. */
+function uploadPrefix(goalId: string, kind: UploadKind): string {
+  return `goals/${goalId}/${kind}/`;
+}
+
+/** How long the browser has to start a direct upload after asking for a token. */
+const UPLOAD_TOKEN_TTL_MS = 10 * 60_000;
+/** Students' PDFs are private: read back with our token, never served by URL. The store must match. */
+const BLOB_ACCESS = "private" as const;
+
+/**
+ * Client token for one browser → Vercel Blob upload, so the PDF never passes through a
+ * function (Vercel caps request bodies at 4.5 MB). The token pins the pathname under this
+ * goal's folder, PDF content type and MAX_UPLOAD_BYTES; Blob adds a random suffix.
+ */
+export async function createUploadToken(goalId: string, kind: UploadKind, fileName: string): Promise<UploadToken> {
+  if (!blobEnabled()) throw new OnboardingError("Large uploads aren't set up here. Paste the text instead.");
+  const pathname = uploadPrefix(goalId, kind) + blobFileName(fileName, `${kind}.pdf`);
+  const token = await generateClientTokenFromReadWriteToken({
+    pathname,
+    allowedContentTypes: ["application/pdf"],
+    maximumSizeInBytes: MAX_UPLOAD_BYTES,
+    addRandomSuffix: true,
+    validUntil: Date.now() + UPLOAD_TOKEN_TTL_MS,
+  });
+  return { pathname, token, access: BLOB_ACCESS };
+}
+
+/** Delete a stored PDF that no Resource keeps. Never throws. */
+async function deleteBlob(url: string | null | undefined): Promise<void> {
+  if (!url || !blobEnabled()) return;
+  await del(url).catch((e) => console.warn("[onboarding] blob delete failed", e));
+}
+
+/**
+ * Bytes of a PDF the browser uploaded straight to Blob. Only blobs in this store (head() asks
+ * the Blob API with our token) under this goal's folder are accepted, and the download is by
+ * pathname, so our token only ever goes to our own store's URL. A rejected upload is deleted.
+ */
+export async function loadDirectUpload(
+  goalId: string,
+  kind: UploadKind,
+  url: string,
+  fileName: string,
+): Promise<NonNullable<UploadInput["file"]>> {
+  const expired = new OnboardingError("That upload didn't go through. Upload the PDF again.");
+  if (!blobEnabled()) throw expired;
+  let host = "";
   try {
-    const blob = await put(`goals/${goalId}/${kind}/${file.name}`, Buffer.from(file.bytes), {
-      access: "public",
+    host = new URL(url).hostname;
+  } catch {
+    throw expired;
+  }
+  if (!host.endsWith(".blob.vercel-storage.com")) throw expired;
+  const meta = await head(url).catch(() => null);
+  if (!meta || !meta.pathname.startsWith(uploadPrefix(goalId, kind))) throw expired;
+
+  try {
+    if (meta.size > MAX_UPLOAD_BYTES) {
+      throw new OnboardingError(`That PDF is over ${MAX_UPLOAD_MB} MB. Split it, or paste the text instead.`);
+    }
+    const res = await get(meta.pathname, { access: BLOB_ACCESS, useCache: false });
+    if (!res || res.statusCode !== 200) throw new Error("blob download failed");
+    const bytes = new Uint8Array(await new Response(res.stream).arrayBuffer());
+    if (bytes.byteLength > MAX_UPLOAD_BYTES) {
+      throw new OnboardingError(`That PDF is over ${MAX_UPLOAD_MB} MB. Split it, or paste the text instead.`);
+    }
+    if (!isPdfBytes(bytes)) throw new OnboardingError("That file isn't a PDF.");
+    return { name: fileName, bytes, blobUrl: meta.url };
+  } catch (err) {
+    await deleteBlob(meta.url);
+    throw err;
+  }
+}
+
+/** Delete a direct upload whose request failed before any Resource kept it. Never throws. */
+export async function discardUpload(input: UploadInput | undefined): Promise<void> {
+  await deleteBlob(input?.file?.blobUrl);
+}
+
+/** Archive the original PDF to Vercel Blob when configured. Never throws: archiving is optional. */
+async function archivePdf(goalId: string, kind: UploadKind, file: UploadInput["file"]): Promise<string | null> {
+  if (!file || !blobEnabled()) return null;
+  if (file.blobUrl) return file.blobUrl; // direct upload: already stored
+  try {
+    const blob = await put(uploadPrefix(goalId, kind) + blobFileName(file.name, `${kind}.pdf`), Buffer.from(file.bytes), {
+      access: BLOB_ACCESS,
       addRandomSuffix: true,
       contentType: "application/pdf",
     });
@@ -304,7 +391,7 @@ export async function runSyllabusExtraction(goal: Goal, rawInput: UploadInput): 
     console.error("[onboarding] syllabus extraction failed", err);
     const message = describeError(err, "Couldn't read that syllabus. Try again, or paste the text instead.");
     await markFailed(resource.id, message);
-    await blobUrl;
+    await deleteBlob(await blobUrl); // nothing keeps a failed upload
     throw new OnboardingError(message);
   }
 }
@@ -473,7 +560,7 @@ export async function runPyqMapping(goal: Goal, rawInput: UploadInput): Promise<
     console.error("[onboarding] PYQ mapping failed", err);
     const message = describeError(err, "Couldn't map those papers. Try again, or paste the questions as text.");
     await markFailed(resource.id, message);
-    await blobUrl;
+    await deleteBlob(await blobUrl); // nothing keeps a failed upload
     throw new OnboardingError(message);
   }
 }
@@ -547,7 +634,7 @@ export async function runNotesUpload(goal: Goal, rawInput: UploadInput): Promise
     const message = describeError(err, "Couldn't index these notes. Retry, or paste the text instead.");
     await markFailed(resource.id, message);
     await db.chunk.deleteMany({ where: { resourceId: resource.id } }).catch(() => undefined);
-    await blobUrl;
+    await deleteBlob(await blobUrl); // nothing keeps a failed upload
     return toNotesView({ ...resource, status: "failed", error: message }, undefined, new Date());
   }
 }

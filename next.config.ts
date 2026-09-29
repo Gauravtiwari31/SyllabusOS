@@ -5,13 +5,14 @@ const isDev = process.env.NODE_ENV === "development";
 // CSP without nonces (see node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md).
 // Inline scripts are needed for Next's bootstrap and next-themes; everything else is 'self'.
 // Google is allowed only where sign-in needs it (form POST redirect, avatar images).
+// connect-src allows the Vercel Blob API for direct browser → Blob PDF uploads (UploadField).
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' blob: data: https://lh3.googleusercontent.com",
   "font-src 'self'",
-  "connect-src 'self'",
+  "connect-src 'self' https://vercel.com/api/blob/",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self' https://accounts.google.com",
@@ -35,9 +36,10 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["unpdf", "pg"],
   experimental: {
     serverActions: {
-      // Syllabus / notes / PYQ PDFs are uploaded through server actions. Vercel functions take
-      // at most 4.5 MB per request; the 4 MB file cap is enforced again in
-      // app/actions/onboarding.ts before any parsing, and every action requires a session.
+      // With Vercel Blob configured, PDFs go browser → Blob and actions only receive the URL.
+      // Without it, syllabus / notes / PYQ PDFs travel in the server-action body; Vercel
+      // functions take at most 4.5 MB per request, and the 4 MB file cap is enforced again in
+      // app/actions/onboarding.ts before any parsing. Every action requires a session.
       bodySizeLimit: "4.5mb",
     },
   },

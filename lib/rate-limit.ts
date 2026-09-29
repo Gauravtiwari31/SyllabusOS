@@ -22,6 +22,8 @@ export const RATE_RULES = {
   guestSignupGlobal: { limit: 600, windowSec: 60 * 60, failClosed: true },
   /** Syllabus extraction, PYQ mapping, notes indexing (large prompts / embeddings). */
   aiHeavy: { limit: 12, windowSec: 60 * 60, failClosed: true },
+  /** Direct-upload tokens; each lets the browser store one PDF (up to 20 MB) in Vercel Blob. */
+  upload: { limit: 30, windowSec: 60 * 60, failClosed: true },
   /** Diagnostic / check / practice question generation. */
   aiQuestions: { limit: 20, windowSec: 60 * 60 },
   /** Socratic tutor turns and hint requests. */

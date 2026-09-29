@@ -15,12 +15,19 @@ export const DRAFT_LIMITS = {
 } as const;
 
 /**
- * Upload cap for syllabus / PYQ / notes PDFs. Vercel functions accept at most 4.5 MB per
- * request, so the cap is 4 MB (next.config.ts sets the server-action body limit to match).
- * Larger notes can be pasted as text instead.
+ * Upload caps for syllabus / PYQ / notes PDFs. With Vercel Blob configured the browser uploads
+ * the PDF straight to Blob and the server action only receives its URL, so MAX_UPLOAD_MB
+ * applies (Gemini takes inline PDFs up to 50 MB). Without Blob the PDF travels in the
+ * server-action body, which Vercel caps at 4.5 MB per request, so the cap is
+ * MAX_INLINE_UPLOAD_MB (next.config.ts sets the body limit to match).
  */
-export const MAX_UPLOAD_MB = 4;
+export const MAX_UPLOAD_MB = 20;
 export const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+export const MAX_INLINE_UPLOAD_MB = 4;
+export const MAX_INLINE_UPLOAD_BYTES = MAX_INLINE_UPLOAD_MB * 1024 * 1024;
+
+/** PDF cap in MB for the upload path in use. */
+export const uploadLimitMb = (directUploads: boolean) => (directUploads ? MAX_UPLOAD_MB : MAX_INLINE_UPLOAD_MB);
 export const DEFAULT_UNIT = "General";
 export const DEFAULT_EST_MINUTES = 30;
 
@@ -691,9 +698,12 @@ export function bestConceptForText(
 
 // ── files ───────────────────────────────────────────────────────────────────
 /** Client- and server-side PDF check on metadata. Returns an error message or null. */
-export function checkPdfMeta(file: { name: string; type: string; size: number }): string | null {
+export function checkPdfMeta(
+  file: { name: string; type: string; size: number },
+  maxMb: number = MAX_UPLOAD_MB,
+): string | null {
   if (file.size <= 0) return "That file is empty.";
-  if (file.size > MAX_UPLOAD_BYTES) return `"${file.name}" is over ${MAX_UPLOAD_MB} MB. Split it or paste the text instead.`;
+  if (file.size > maxMb * 1024 * 1024) return `"${file.name}" is over ${maxMb} MB. Split it or paste the text instead.`;
   const looksPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
   if (!looksPdf) return `"${file.name}" isn't a PDF. Upload a PDF or paste the text.`;
   return null;
@@ -716,6 +726,16 @@ export function safeFileName(name: string, fallback: string): string {
   // Control characters and bidi overrides (which can disguise "gpj.pdf" as "pdf.jpg").
   const cleaned = base.replace(/[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g, "").trim().slice(0, 120);
   return cleaned || fallback;
+}
+
+/** Name for a Blob pathname (it becomes part of a public URL): [A-Za-z0-9._-] only, ends in .pdf. */
+export function blobFileName(name: string, fallback: string): string {
+  const stem = safeFileName(name, fallback)
+    .replace(/\.pdf$/i, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "")
+    .slice(0, 80);
+  return `${stem || fallback.replace(/\.pdf$/i, "")}.pdf`;
 }
 
 // ── flow ────────────────────────────────────────────────────────────────────

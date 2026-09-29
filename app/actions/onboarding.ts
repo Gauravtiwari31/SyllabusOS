@@ -2,7 +2,8 @@
 // Onboarding actions: create a goal, syllabus → draft graph → confirm, PYQ weightage, notes.
 // Thin wrappers: zod-validated primitives in, requireGoal ownership check, rate limits on the
 // AI-heavy steps, upload checks (size, PDF magic bytes, text caps) BEFORE any parsing, and
-// ActionResult out — raw errors are logged, never sent to the client.
+// ActionResult out — raw errors are logged, never sent to the client. PDFs arrive either in the
+// body (up to 4 MB) or, with Vercel Blob, as the URL of a direct browser upload (up to 20 MB).
 import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
@@ -13,7 +14,10 @@ import {
   countGoals,
   createGoalRecord,
   confirmGraph,
+  createUploadToken,
   deleteNotes,
+  discardUpload,
+  loadDirectUpload,
   MAX_TEXT_CHARS,
   OnboardingError,
   remapPyq,
@@ -23,12 +27,20 @@ import {
   type UploadInput,
 } from "@/lib/services/onboarding";
 import { addDaysIso, examDateFromIso, makeGoalSchema } from "@/components/onboarding/goal-schema";
-import { isPdfBytes, MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from "@/components/onboarding/model";
+import { isPdfBytes, MAX_INLINE_UPLOAD_BYTES, MAX_INLINE_UPLOAD_MB } from "@/components/onboarding/model";
 import type { ActionResult } from "@/lib/types";
-import type { ConfirmResult, ExtractResult, NotesResourceView, PyqView } from "@/components/onboarding/types";
+import type {
+  ConfirmResult,
+  ExtractResult,
+  NotesResourceView,
+  PyqView,
+  UploadKind,
+  UploadToken,
+} from "@/components/onboarding/types";
 
 const MAX_GOALS_PER_USER = 10;
 const Id = z.string().trim().min(1).max(64);
+const Kind = z.enum(["syllabus", "pyq", "notes"]);
 
 function fail(err: unknown, fallback: string): { ok: false; error: string } {
   unstable_rethrow(err); // let redirect()/notFound() through
@@ -37,13 +49,21 @@ function fail(err: unknown, fallback: string): { ok: false; error: string } {
   return { ok: false, error: fallback };
 }
 
-/** FormData ("file" PDF or "text") → validated UploadInput. Throws OnboardingError. */
-async function readUpload(form: FormData, kind: keyof typeof MAX_TEXT_CHARS): Promise<UploadInput> {
+/**
+ * FormData → validated UploadInput. Throws OnboardingError. One of: "blobUrl" (+ "fileName") of a
+ * direct upload to Vercel Blob, "file" (a PDF in the body), or "text".
+ */
+async function readUpload(form: FormData, goalId: string, kind: UploadKind): Promise<UploadInput> {
+  const blobUrl = form.get("blobUrl");
   const file = form.get("file");
   const text = form.get("text");
+  if (typeof blobUrl === "string" && blobUrl) {
+    const fileName = form.get("fileName");
+    return { file: await loadDirectUpload(goalId, kind, blobUrl, typeof fileName === "string" ? fileName : "") };
+  }
   if (file instanceof File && file.size > 0) {
-    if (file.size > MAX_UPLOAD_BYTES) {
-      throw new OnboardingError(`That PDF is over ${MAX_UPLOAD_MB} MB. Split it, or paste the text instead.`);
+    if (file.size > MAX_INLINE_UPLOAD_BYTES) {
+      throw new OnboardingError(`That PDF is over ${MAX_INLINE_UPLOAD_MB} MB. Split it, or paste the text instead.`);
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (!isPdfBytes(bytes)) throw new OnboardingError("That file isn't a PDF.");
@@ -56,6 +76,23 @@ async function readUpload(form: FormData, kind: keyof typeof MAX_TEXT_CHARS): Pr
     return { text };
   }
   throw new OnboardingError("Upload a PDF or paste the text.");
+}
+
+/** Token for one direct browser → Vercel Blob PDF upload (UploadField, when Blob is set up). */
+export async function createUploadTokenAction(
+  goalId: string,
+  kind: UploadKind,
+  fileName: string,
+): Promise<ActionResult<UploadToken>> {
+  const parsed = z.object({ goalId: Id, kind: Kind, fileName: z.string().max(500) }).safeParse({ goalId, kind, fileName });
+  if (!parsed.success) return { ok: false, error: "Invalid request." };
+  try {
+    const { user, goal } = await requireGoal(parsed.data.goalId);
+    await enforceRateLimit("upload", user.id);
+    return { ok: true, data: await createUploadToken(goal.id, parsed.data.kind, parsed.data.fileName) };
+  } catch (err) {
+    return fail(err, "Couldn't start the upload. Try again.");
+  }
 }
 
 // ── goal ────────────────────────────────────────────────────────────────────
@@ -89,13 +126,15 @@ export async function createGoalAction(input: {
 export async function extractSyllabusAction(goalId: string, form: FormData): Promise<ActionResult<ExtractResult>> {
   const id = Id.safeParse(goalId);
   if (!id.success) return { ok: false, error: "Invalid subject." };
+  let upload: UploadInput | undefined;
   try {
     const { user, goal } = await requireGoal(id.data);
     if (goal.status === "active") return { ok: false, error: "This subject is already set up." };
-    const upload = await readUpload(form, "syllabus");
+    upload = await readUpload(form, goal.id, "syllabus");
     await enforceRateLimit("aiHeavy", user.id);
     return { ok: true, data: await runSyllabusExtraction(goal, upload) };
   } catch (err) {
+    await discardUpload(upload);
     return fail(err, "Couldn't read that syllabus. Try again, or paste the text instead.");
   }
 }
@@ -129,12 +168,14 @@ export async function confirmGraphAction(goalId: string, draft: unknown): Promis
 export async function uploadPyqAction(goalId: string, form: FormData): Promise<ActionResult<PyqView>> {
   const id = Id.safeParse(goalId);
   if (!id.success) return { ok: false, error: "Invalid subject." };
+  let upload: UploadInput | undefined;
   try {
     const { user, goal } = await requireGoal(id.data);
-    const upload = await readUpload(form, "pyq");
+    upload = await readUpload(form, goal.id, "pyq");
     await enforceRateLimit("aiHeavy", user.id);
     return { ok: true, data: await runPyqMapping(goal, upload) };
   } catch (err) {
+    await discardUpload(upload);
     return fail(err, "Couldn't map those papers. Try again, or paste the questions as text.");
   }
 }
@@ -155,12 +196,14 @@ export async function remapPyqAction(goalId: string, questionId: string, concept
 export async function uploadNotesAction(goalId: string, form: FormData): Promise<ActionResult<NotesResourceView>> {
   const id = Id.safeParse(goalId);
   if (!id.success) return { ok: false, error: "Invalid subject." };
+  let upload: UploadInput | undefined;
   try {
     const { user, goal } = await requireGoal(id.data);
-    const upload = await readUpload(form, "notes");
+    upload = await readUpload(form, goal.id, "notes");
     await enforceRateLimit("aiHeavy", user.id);
     return { ok: true, data: await runNotesUpload(goal, upload) };
   } catch (err) {
+    await discardUpload(upload);
     return fail(err, "Couldn't index these notes. Try again, or paste the text instead.");
   }
 }

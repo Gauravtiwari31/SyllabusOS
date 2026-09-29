@@ -426,6 +426,9 @@ export function SetupFlow({ state }: { state: SetupState }) {
                 Upload your university syllabus, or paste the unit-wise topic list. You’ll be able to edit everything before saving.
               </p>
               <UploadField
+                goalId={goalId}
+                kind="syllabus"
+                directUploads={state.directUploads}
                 label="Drop your syllabus PDF"
                 pasteLabel="Paste text"
                 placeholder={"UNIT I: Introduction — database system architecture, data independence, ER model…\nUNIT II: …"}
@@ -482,6 +485,9 @@ export function SetupFlow({ state }: { state: SetupState }) {
           </p>
           {pyq && <PyqPanel goalId={goalId} pyq={pyq} onChange={setPyq} />}
           <UploadField
+            goalId={goalId}
+            kind="pyq"
+            directUploads={state.directUploads}
             label={pyq ? "Replace with other papers" : "Drop 1–3 years of question papers"}
             pasteLabel="Paste questions"
             placeholder={"Q1. (a) Explain conflict serializability with an example. [10]\n(b) …"}
@@ -512,6 +518,9 @@ export function SetupFlow({ state }: { state: SetupState }) {
           </p>
           <NotesList goalId={goalId} notes={notes} onChange={setNotes} />
           <UploadField
+            goalId={goalId}
+            kind="notes"
+            directUploads={state.directUploads}
             label="Drop your notes PDF"
             pasteLabel="Paste notes"
             placeholder="Paste your notes here…"

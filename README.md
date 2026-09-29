@@ -54,7 +54,7 @@ pnpm dev                             # http://localhost:3000
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | no | Google sign-in appears only when both are set. Redirect URI: `<origin>/api/auth/callback/google`. |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | no | Without it the app runs in offline mode. |
 | `GEMINI_MODEL_FAST`, `GEMINI_MODEL_STRONG`, `GEMINI_MODEL_FALLBACK`, `GEMINI_EMBED_MODEL` | no | Model ids; `GEMINI_MODEL_FALLBACK` may be a comma-separated list. |
-| `BLOB_READ_WRITE_TOKEN` | no | Archive uploaded PDFs to Vercel Blob (public URLs). |
+| `BLOB_READ_WRITE_TOKEN` | no | PDFs upload from the browser straight to a **private** Vercel Blob store (20 MB cap instead of 4 MB) and the originals are kept there. |
 | `ANDROID_PACKAGE_NAME`, `ANDROID_SHA256_CERT_FINGERPRINTS` | no | Serve `/.well-known/assetlinks.json` for the Android app. |
 
 ## Scripts
@@ -72,7 +72,7 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every push and
 - Every server action validates input with zod and checks ownership (`requireGoal` / user-scoped queries); pages run their own guards.
 - Postgres-backed rate limits (`lib/rate-limit.ts`): guest sign-up per IP and globally (inside the Auth.js `authorize`, so both entry points are covered), AI-heavy actions per user, and a daily deployment-wide AI budget that falls back to offline mode.
 - Untrusted text (syllabus, papers, notes, student messages) reaches the model only inside nonce-tagged data blocks; model output is schema-validated and never trusted for ids, ladder stages or citations.
-- Uploads: 10 MB cap, PDF magic bytes (not the browser's MIME type), text length caps, sanitised file names, notes-per-goal and goals-per-user limits.
+- Uploads: 20 MB cap with Vercel Blob (browser → Blob with a short-lived token pinned to the goal's folder, PDF type and size), 4 MB without; PDF magic bytes (not the browser's MIME type), text length caps, sanitised file names, notes-per-goal and goals-per-user limits.
 - CSP and security headers in `next.config.ts`; `poweredByHeader` off.
 - Raw SQL only through Prisma tagged templates; every retrieval query is scoped to the goal.
 - Guest accounts expire after 7 days. Secrets live only in `.env*` files, which are git-ignored.

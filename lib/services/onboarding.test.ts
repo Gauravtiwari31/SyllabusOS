@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DraftConcept, DraftGraph } from "@/lib/ai/schemas";
 import {
   bestConceptForText,
+  blobFileName,
   checkPdfMeta,
   cycleIfAdded,
   daysBetweenIso,
@@ -12,6 +13,7 @@ import {
   findCycle,
   groupByUnit,
   isPdfBytes,
+  MAX_INLINE_UPLOAD_BYTES,
   MAX_UPLOAD_BYTES,
   nextUnitName,
   normaliseWeightage,
@@ -21,6 +23,7 @@ import {
   safeFileName,
   sanitizeDraft,
   splitTextIntoPages,
+  uploadLimitMb,
   validateDraft,
 } from "@/components/onboarding/model";
 import { examDateFromIso, makeGoalSchema } from "@/components/onboarding/goal-schema";
@@ -322,8 +325,24 @@ describe("files & flow", () => {
     expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: 1000 })).toBeNull();
     expect(checkPdfMeta({ name: "a.PDF", type: "", size: 1000 })).toBeNull();
     expect(checkPdfMeta({ name: "a.docx", type: "application/msword", size: 1000 })).toMatch(/isn't a PDF/);
-    expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: MAX_UPLOAD_BYTES + 1 })).toMatch(/4 MB/);
+    expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: MAX_UPLOAD_BYTES + 1 })).toMatch(/20 MB/);
     expect(checkPdfMeta({ name: "a.pdf", type: "application/pdf", size: 0 })).toMatch(/empty/);
+  });
+
+  it("caps PDFs by upload path (direct to Blob vs in the action body)", () => {
+    expect(uploadLimitMb(true)).toBe(20);
+    expect(uploadLimitMb(false)).toBe(4);
+    const big = { name: "a.pdf", type: "application/pdf", size: MAX_INLINE_UPLOAD_BYTES + 1 };
+    expect(checkPdfMeta(big, uploadLimitMb(true))).toBeNull();
+    expect(checkPdfMeta(big, uploadLimitMb(false))).toMatch(/4 MB/);
+  });
+
+  it("makes URL-safe Blob file names", () => {
+    expect(blobFileName("Unit 1 – Notes (final).PDF", "notes.pdf")).toBe("Unit-1-Notes-final.pdf");
+    expect(blobFileName("../../etc/passwd", "notes.pdf")).toBe("passwd.pdf");
+    expect(blobFileName("a?b#c%2F.pdf", "notes.pdf")).toBe("a-b-c-2F.pdf");
+    expect(blobFileName("नोट्स.pdf", "syllabus.pdf")).toBe("syllabus.pdf");
+    expect(blobFileName("", "pyq.pdf")).toBe("pyq.pdf");
   });
 
   it("sniffs the PDF header", () => {

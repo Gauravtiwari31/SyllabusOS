@@ -1,15 +1,23 @@
 "use client";
-// PDF dropzone or pasted text → FormData ("file" | "text") for the onboarding actions.
+// PDF dropzone or pasted text → FormData for the onboarding actions: "text", "file" (PDF in the
+// body, 4 MB) or, when Vercel Blob is set up, "blobUrl" + "fileName" after the PDF was uploaded
+// straight from the browser to Blob (20 MB; it never passes through a function).
 // Size/type are checked here for fast feedback and again on the server (magic bytes).
 import { useId, useRef, useState } from "react";
 import { FileText, Upload, X } from "lucide-react";
+import { put } from "@vercel/blob/client";
+import { createUploadTokenAction } from "@/app/actions/onboarding";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DotLoader } from "@/components/nu";
 import { cn } from "@/lib/utils";
-import { checkPdfMeta, MAX_UPLOAD_MB } from "./model";
+import { checkPdfMeta, uploadLimitMb } from "./model";
+import type { UploadKind } from "./types";
 
 export function UploadField({
+  goalId,
+  kind,
+  directUploads,
   label,
   pasteLabel,
   placeholder,
@@ -19,6 +27,9 @@ export function UploadField({
   pendingLabel,
   onSubmit,
 }: {
+  goalId: string;
+  kind: UploadKind;
+  directUploads: boolean;
   label: string;
   pasteLabel: string;
   placeholder: string;
@@ -33,21 +44,58 @@ export function UploadField({
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  /** Percent of a direct upload in flight; null when idle. */
+  const [progress, setProgress] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
+  const maxMb = uploadLimitMb(directUploads);
+  const busy = pending || progress !== null;
 
   const pick = (f: File | null | undefined) => {
     if (!f) return;
-    const problem = checkPdfMeta(f);
+    const problem = checkPdfMeta(f, maxMb);
     setError(problem);
     setFile(problem ? null : f);
   };
 
-  const submit = () => {
+  /** Browser → Vercel Blob with a short-lived token; returns the blob URL, or null after showing an error. */
+  const uploadDirect = async (f: File): Promise<string | null> => {
+    setError(null);
+    setProgress(0);
+    try {
+      const t = await createUploadTokenAction(goalId, kind, f.name);
+      if (!t.ok) {
+        setError(t.error);
+        return null;
+      }
+      const blob = await put(t.data.pathname, f, {
+        access: t.data.access,
+        token: t.data.token,
+        contentType: "application/pdf",
+        onUploadProgress: (e) => setProgress(Math.round(e.percentage)),
+      });
+      return blob.url;
+    } catch (err) {
+      console.error("[upload] direct upload failed", err);
+      setError("The upload didn't finish. Check your connection and try again.");
+      return null;
+    } finally {
+      setProgress(null);
+    }
+  };
+
+  const submit = async () => {
     const form = new FormData();
     if (mode === "pdf") {
       if (!file) return setError("Choose a PDF first.");
-      form.set("file", file);
+      if (directUploads) {
+        const url = await uploadDirect(file);
+        if (!url) return;
+        form.set("blobUrl", url);
+        form.set("fileName", file.name);
+      } else {
+        form.set("file", file);
+      }
     } else {
       if (!text.trim()) return setError("Paste some text first.");
       form.set("text", text);
@@ -69,6 +117,7 @@ export function UploadField({
             key={key}
             type="button"
             aria-pressed={mode === key}
+            disabled={busy}
             onClick={() => {
               setMode(key);
               setError(null);
@@ -91,7 +140,7 @@ export function UploadField({
               <p className="truncate text-sm font-medium">{file.name}</p>
               <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
             </div>
-            <Button type="button" size="icon" variant="ghost" aria-label="Remove file" onClick={() => setFile(null)} disabled={pending}>
+            <Button type="button" size="icon" variant="ghost" aria-label="Remove file" onClick={() => setFile(null)} disabled={busy}>
               <X className="size-4" />
             </Button>
           </div>
@@ -116,7 +165,7 @@ export function UploadField({
             <Upload className="size-5 text-muted-foreground" aria-hidden />
             <span className="text-sm font-medium">{label}</span>
             <span className="text-xs text-muted-foreground">
-              PDF up to {MAX_UPLOAD_MB} MB · drag it here or tap to choose
+              PDF up to {maxMb} MB · drag it here or tap to choose
             </span>
             <input
               ref={inputRef}
@@ -149,8 +198,14 @@ export function UploadField({
           {error}
         </p>
       )}
-      <Button type="button" className="self-start" onClick={submit} disabled={pending}>
-        {pending ? <DotLoader label={pendingLabel} /> : submitLabel}
+      <Button type="button" className="self-start" onClick={() => void submit()} disabled={busy}>
+        {progress !== null ? (
+          <DotLoader label={`Uploading ${progress}%`} />
+        ) : pending ? (
+          <DotLoader label={pendingLabel} />
+        ) : (
+          submitLabel
+        )}
       </Button>
     </div>
   );
