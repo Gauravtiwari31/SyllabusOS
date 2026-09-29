@@ -1,0 +1,66 @@
+{
+  "packageId": "com.crazycoders.syllabusos",
+  "host": "syllabus-os-gh-cc.vercel.app",
+  "name": "SyllabusOS",
+  "launcherName": "SyllabusOS",
+  "display": "standalone",
+  "themeColor": "#000000",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#000000",
+  "enableNotifications": true,
+  "startUrl": "/dashboard",
+  "iconUrl": "https://syllabus-os-gh-cc.vercel.app/icons/icon-512.png",
+  "maskableIconUrl": "https://syllabus-os-gh-cc.vercel.app/icons/maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [
+    {
+      "name": "Study now",
+      "shortName": "Study now",
+      "url": "https://syllabus-os-gh-cc.vercel.app/dashboard",
+      "chosenIconUrl": "https://syllabus-os-gh-cc.vercel.app/icons/icon-192.png"
+    },
+    {
+      "name": "Today's plan",
+      "shortName": "Today's plan",
+      "url": "https://syllabus-os-gh-cc.vercel.app/plan",
+      "chosenIconUrl": "https://syllabus-os-gh-cc.vercel.app/icons/icon-192.png"
+    },
+    {
+      "name": "Mistakes",
+      "shortName": "Mistakes",
+      "url": "https://syllabus-os-gh-cc.vercel.app/mistakes",
+      "chosenIconUrl": "https://syllabus-os-gh-cc.vercel.app/icons/icon-192.png"
+    }
+  ],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://syllabus-os-gh-cc.vercel.app/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://syllabus-os-gh-cc.vercel.app/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [],
+  "appVersion": "1"
+}
