@@ -59,7 +59,7 @@ Add `ANDROID_PACKAGE_NAME` and `ANDROID_SHA256_CERT_FINGERPRINTS` later, when yo
 
 ## 5. Region
 
-Settings → **Functions** → Function Region → **Singapore (sin1)**, next to the database. Every page makes several database queries, so this matters more than anything else for speed.
+`vercel.json` already runs the server functions in **Singapore (sin1)**, next to the database. Every page makes several database queries, so this matters more than anything else for speed. If your database is in another region, change `regions` in `vercel.json` to the nearest Vercel region.
 
 ## 6. Deploy
 

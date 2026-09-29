@@ -1,0 +1,2 @@
+# The Android (TWA) wrapper is built locally with Bubblewrap; the website doesn't need it.
+android/
