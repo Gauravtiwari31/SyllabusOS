@@ -3,7 +3,7 @@
 // belong together, so the app opens full screen without a browser URL bar.
 //
 // Configure in the hosting environment (no code change per key):
-//   ANDROID_PACKAGE_NAME               e.g. com.crazycoders.syllabusos
+//   ANDROID_PACKAGE_NAME               e.g. com.syllabusos.app
 //   ANDROID_SHA256_CERT_FINGERPRINTS   comma-separated, e.g. your upload key and Play's app-signing key
 import { NextResponse } from "next/server";
 

@@ -21,7 +21,7 @@ plugins {
 }
 
 def twaManifest = [
-    applicationId: 'com.crazycoders.syllabusos',
+    applicationId: 'com.syllabusos.app',
     hostName: 'syllabus-os-gh-cc.vercel.app', // The domain being opened in the TWA.
     launchUrl: '/dashboard', // The start path for the TWA. Must be relative to the domain.
     name: 'SyllabusOS', // The application name.
@@ -52,9 +52,9 @@ def twaManifest = [
 
 android {
     compileSdkVersion 36
-    namespace "com.crazycoders.syllabusos"
+    namespace "com.syllabusos.app"
     defaultConfig {
-        applicationId "com.crazycoders.syllabusos"
+        applicationId "com.syllabusos.app"
         minSdkVersion 21
         targetSdkVersion 36
         versionCode 1

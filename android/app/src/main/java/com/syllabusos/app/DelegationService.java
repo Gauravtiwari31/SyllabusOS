@@ -1,4 +1,4 @@
-package com.crazycoders.syllabusos;
+package com.syllabusos.app;
 
 
 
