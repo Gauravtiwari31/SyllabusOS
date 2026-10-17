@@ -12,6 +12,9 @@
 
 @custom-variant dark (&:is(.dark *));
 @custom-variant light (&:is(.light *));
+/* Phones in landscape (and other short windows): too little height for a header plus a
+   bottom tab bar, so the app shell moves navigation into the header (short:…). */
+@custom-variant short (@media (orientation: landscape) and (max-height: 520px));
 
 @theme inline {
   --color-background: var(--background);
@@ -243,6 +246,9 @@ html[data-font="geist"] {
   }
   body {
     @apply bg-background text-foreground;
+    /* viewport-fit=cover: keep content clear of the notch / rounded corners in landscape. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {
@@ -276,6 +282,8 @@ html[data-font="geist"] {
   .nu-tile--flush {
     padding: 0;
     overflow: hidden;
+    /* clip (unlike hidden) is not a scroll container, so sticky children still stick. */
+    overflow: clip;
   }
   .nu-tile--accent {
     border-color: color-mix(in oklab, var(--nu-accent) 55%, transparent);
@@ -405,8 +413,28 @@ html[data-font="geist"] {
 .nu-tabbar-pad {
   padding-bottom: calc(72px + env(safe-area-inset-bottom));
 }
+/* No tab bar: desktop (top nav), short landscape screens (nav in the header) and focus mode. */
 @media (min-width: 1024px) {
   .nu-tabbar-pad {
+    padding-bottom: 0;
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .nu-tabbar-pad {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Focus mode: a study session or onboarding step renders .nu-focus, which hides the bottom
+   tab bar so the reply box can sit at the bottom of the screen. */
+body:has(.nu-focus) .nu-tabbar {
+  display: none;
+}
+.nu-tabbar-pad:has(.nu-focus) {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  .nu-tabbar-pad:has(.nu-focus) {
     padding-bottom: 0;
   }
 }

@@ -12,7 +12,7 @@ const ANCHORS = [
 /** Public header for the landing page: wordmark, in-page anchors, theme toggle, sign-in. */
 export function SiteHeader({ signedIn }: { signedIn: boolean }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4 sm:px-6">
         <Logo href="/" />
         <nav aria-label="Sections" className="ml-4 hidden items-center gap-1 md:flex">

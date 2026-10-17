@@ -74,6 +74,21 @@ function Message({ m }: { m: TutorMessageView }) {
   );
 }
 
+/** The student's reply while it is being graded (not yet saved). */
+function pendingReply(content: string): TutorMessageView {
+  return {
+    id: "sending",
+    role: "student",
+    content,
+    stage: null,
+    evaluation: null,
+    misconception: null,
+    sources: [],
+    notInNotes: false,
+    createdAt: "",
+  };
+}
+
 function ResultView({ result, conceptName }: { result: SessionResultView; conceptName: string }) {
   const s = result.summary;
   const next = result.nextRecommendation;
@@ -127,6 +142,9 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
   const [session, setSession] = useState(initial.session);
   const [result, setResult] = useState<SessionResultView | null>(initial.result);
   const [draft, setDraft] = useState("");
+  // The reply being graded: shown as the student's bubble straight away, restored to the
+  // box if the request fails.
+  const [sending, setSending] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [checkPending, setCheckPending] = useState<string | null>(null);
   const [hinglish, setHinglish] = useState(initial.session.hinglish);
@@ -138,7 +156,7 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [session.turns.length]);
+  }, [session.turns.length, sending]);
 
   const applyReply = (r: {
     messages: TutorMessageView[];
@@ -163,10 +181,18 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
   const send = () => {
     const text = draft.trim();
     if (!text || pending) return;
+    setSending(text);
+    setDraft("");
     startTransition(async () => {
-      const r = await sendTutorMessageAction(session.id, text);
-      if (!r.ok) return void toast.error(r.error);
-      setDraft("");
+      const r = await sendTutorMessageAction(session.id, text).catch(() => ({
+        ok: false as const,
+        error: "Couldn’t reach the tutor. Check your connection and try again.",
+      }));
+      setSending(null);
+      if (!r.ok) {
+        setDraft((d) => d || text);
+        return void toast.error(r.error);
+      }
       applyReply(r.data);
     });
   };
@@ -220,7 +246,8 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
   };
 
   return (
-    <div className="flex flex-col gap-5 sm:gap-6">
+    // nu-focus: hides the bottom tab bar on phones (globals.css) so the reply box can sit there.
+    <div className="nu-focus flex flex-col gap-5 sm:gap-6">
       <div className="flex flex-col gap-3">
         <Link href="/dashboard" className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="size-4" aria-hidden />
@@ -238,23 +265,29 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
       {result ? (
         <ResultView result={result} conceptName={session.concept.name} />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <Tile flush className="order-2 min-h-[420px] lg:order-1">
+        // Phones: status → conversation → Hinglish switch. Desktop: conversation on the left
+        // across both rows, status and the switch stacked on the right.
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:grid-rows-[auto_1fr]">
+          <Tile flush className="order-2 min-h-[420px] lg:order-none lg:col-start-1 lg:row-span-2 lg:row-start-1">
             <ol className="flex flex-col gap-4 p-4 sm:p-6" aria-live="polite" aria-label="Conversation">
               {session.turns.map((m) => (
                 <Message key={m.id} m={m} />
               ))}
+              {sending && (
+                <Message m={pendingReply(sending)} />
+              )}
               {pending && !checkPending && (
                 <li className="self-start">
                   <DotLoader label="Tutor is thinking" />
                 </li>
               )}
             </ol>
-            <div ref={endRef} />
+            {/* scroll-margin keeps the latest message above the pinned reply box */}
+            <div ref={endRef} className="scroll-mb-48" />
 
             {session.status === "active" ? (
               <form
-                className="mt-auto flex flex-col gap-2 border-t border-border p-3 sm:p-4"
+                className="sticky bottom-0 z-10 mt-auto flex flex-col gap-2 border-t border-border bg-card/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-card/85 sm:p-4 sm:pb-[calc(1rem+env(safe-area-inset-bottom))] short:gap-1.5 short:p-2 short:pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
                 onSubmit={(e) => {
                   e.preventDefault();
                   send();
@@ -277,7 +310,7 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
                   rows={2}
                   placeholder="Reason it out in your own words…"
                   disabled={pending}
-                  className="min-h-16 resize-none text-base md:text-[15px]"
+                  className="min-h-16 resize-none text-base short:min-h-11 md:text-[15px]"
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="submit" disabled={!draft.trim() || pending}>
@@ -345,7 +378,7 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
             ) : null}
           </Tile>
 
-          <div className="order-1 flex flex-col gap-4 lg:order-2">
+          <div className="order-1 grid content-start gap-4 sm:grid-cols-2 lg:order-none lg:col-start-2 lg:row-start-1 lg:grid-cols-1">
             <Tile>
               <TileHeader label="Mastery" />
               <div className="flex items-center justify-between gap-3">
@@ -360,16 +393,16 @@ export function LearnView({ initial }: { initial: LearnPageData }) {
               <TileHeader label="Hint ladder" />
               <LadderRail stage={session.stage} />
             </Tile>
-            <Tile className="hidden sm:flex">
-              <div className="flex items-center justify-between gap-3">
-                <label htmlFor="hinglish" className="text-sm font-medium">
-                  Explain in Hinglish
-                </label>
-                <Switch id="hinglish" checked={hinglish} onCheckedChange={toggleHinglish} />
-              </div>
-              <p className="text-xs text-muted-foreground">Technical terms stay in English. Applies from the next reply.</p>
-            </Tile>
           </div>
+          <Tile className="order-3 self-start lg:order-none lg:col-start-2 lg:row-start-2">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="hinglish" className="text-sm font-medium">
+                Explain in Hinglish
+              </label>
+              <Switch id="hinglish" checked={hinglish} onCheckedChange={toggleHinglish} />
+            </div>
+            <p className="text-xs text-muted-foreground">Technical terms stay in English. Applies from the next reply.</p>
+          </Tile>
         </div>
       )}
     </div>

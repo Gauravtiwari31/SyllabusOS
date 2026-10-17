@@ -7,7 +7,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { answerDiagnostic, finishDiagnostic, skipDiagnostic, startDiagnostic } from "@/app/actions/diagnostic";
-import { ConceptGraph, GraphLegend } from "@/components/concept-graph";
+import { LazyConceptGraph as ConceptGraph } from "@/components/concept-graph/lazy";
+import { GraphLegend } from "@/components/concept-graph/legend";
 import { DotBar, DotLoader, Tile, TileHeader } from "@/components/nu";
 import { Button } from "@/components/ui/button";
 import { ObjectiveQuestion, type ObjectiveResult } from "@/components/tutor/objective-question";
@@ -153,7 +154,8 @@ export function DiagnosticRunner({ goalId }: { goalId: string }) {
     : null;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+    // nu-focus: no bottom tab bar on phones while answering (globals.css).
+    <div className="nu-focus grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
       <Tile>
         {question && (
           <>

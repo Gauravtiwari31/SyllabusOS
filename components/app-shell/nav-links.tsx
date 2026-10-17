@@ -18,25 +18,42 @@ function useActive() {
   return (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Inline top navigation (desktop, lg and up). The active item gets the single red dot. */
-export function NavLinks({ className }: { className?: string }) {
+/**
+ * Inline top navigation. Desktop (lg and up) shows labels and the single red dot on the
+ * active item; `compact` is icon-only for phones in landscape, where the bottom tab bar
+ * would eat too much of the height.
+ */
+export function NavLinks({ className, compact }: { className?: string; compact?: boolean }) {
   const isActive = useActive();
   return (
     <nav aria-label="Main" className={cn("flex items-center gap-1", className)}>
       {NAV_ITEMS.map((item) => {
         const active = isActive(item.href);
+        const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
+            aria-label={compact ? item.label : undefined}
+            title={compact ? item.label : undefined}
             className={cn(
-              "relative inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium transition-colors whitespace-nowrap",
+              "relative inline-flex h-9 items-center rounded-full text-sm font-medium transition-colors whitespace-nowrap",
+              compact ? "w-10 justify-center" : "gap-1.5 px-3",
               active ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            {active && <span className="nu-dot size-1.5" aria-hidden />}
-            {item.label}
+            {compact ? (
+              <>
+                <Icon className="size-[18px]" strokeWidth={active ? 2 : 1.5} aria-hidden />
+                {active && <span className="nu-dot absolute right-1.5 top-1.5 size-1.5" aria-hidden />}
+              </>
+            ) : (
+              <>
+                {active && <span className="nu-dot size-1.5" aria-hidden />}
+                {item.label}
+              </>
+            )}
           </Link>
         );
       })}
@@ -44,13 +61,16 @@ export function NavLinks({ className }: { className?: string }) {
   );
 }
 
-/** Fixed bottom tab bar for phones and tablets (below lg). Respects the iOS safe area. */
+/**
+ * Fixed bottom tab bar for phones and tablets (below lg). Respects the iOS safe area. Hidden
+ * on short landscape screens (icon nav sits in the header) and in focus mode (globals.css).
+ */
 export function TabBar() {
   const isActive = useActive();
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden"
+      className="nu-tabbar fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 short:hidden lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <ul className="mx-auto grid max-w-xl grid-cols-5">

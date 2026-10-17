@@ -30,7 +30,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Search
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <header className="border-b border-border bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4 sm:px-6">
           <Logo href="/" />
           <div className="ml-auto">
