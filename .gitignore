@@ -47,10 +47,12 @@ next-env.d.ts
 # playwright
 /test-results
 /playwright-report
+/e2e/.auth
 
 # Android (Bubblewrap) build output and signing keys — never commit a keystore
 android/*.keystore
 android/*.jks
+android/keystore.properties
 android/*.apk
 android/*.aab
 android/*.idsig

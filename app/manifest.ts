@@ -12,7 +12,8 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
-    orientation: "portrait",
+    // Portrait and landscape both work; the installed app follows the device.
+    orientation: "any",
     background_color: "#000000",
     theme_color: "#000000",
     categories: ["education", "productivity"],

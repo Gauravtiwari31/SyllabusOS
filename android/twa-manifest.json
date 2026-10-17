@@ -17,11 +17,11 @@
   "maskableIconUrl": "https://syllabus-os-gh-cc.vercel.app/icons/maskable-512.png",
   "splashScreenFadeOutDuration": 300,
   "signingKey": {
-    "path": "./android.keystore",
-    "alias": "android"
+    "path": "./release.jks",
+    "alias": "syllabusos"
   },
-  "appVersionName": "1",
-  "appVersionCode": 1,
+  "appVersionName": "1.1.0",
+  "appVersionCode": 2,
   "shortcuts": [
     {
       "name": "Study now",
@@ -54,13 +54,18 @@
   "isMetaQuest": false,
   "fullScopeUrl": "https://syllabus-os-gh-cc.vercel.app/",
   "minSdkVersion": 21,
-  "orientation": "portrait",
-  "fingerprints": [],
+  "orientation": "any",
+  "fingerprints": [
+    {
+      "name": "release",
+      "value": "17:E7:E7:4A:64:75:70:B5:2D:C9:76:8A:60:41:1E:45:BD:31:C4:7C:04:21:3F:D4:26:8A:86:5F:F2:48:48:45"
+    }
+  ],
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
   "protocolHandlers": [],
   "fileHandlers": [],
   "launchHandlerClientMode": "",
   "displayOverride": [],
-  "appVersion": "1"
+  "appVersion": "1.1.0"
 }
