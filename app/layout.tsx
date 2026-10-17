@@ -7,9 +7,16 @@ import { UI_FONT_DEFAULT, UI_FONT_SCRIPT } from "@/lib/ui-font";
 import "./globals.css";
 
 // Interface text: three options the student picks in Settings (lib/ui-font.ts).
+// Only the default is preloaded; the opt-in faces download when a student picks them, so
+// every page doesn't spend ~70 KB of high-priority bandwidth on fonts it never shows.
 const grotesk = Space_Grotesk({ variable: "--font-grotesk", subsets: ["latin"], display: "swap" });
-const jbmono = JetBrains_Mono({ variable: "--font-jbmono", subsets: ["latin"], display: "swap" });
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"], display: "swap" });
+const jbmono = JetBrains_Mono({
+  variable: "--font-jbmono",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+});
+const geist = Geist({ variable: "--font-geist", subsets: ["latin"], display: "swap", preload: false });
 
 // NThing UI type system — each face has exactly one job.
 const ndot = localFont({
@@ -22,16 +29,19 @@ const dot5x7 = localFont({
   variable: "--font-5x7",
   display: "swap",
 });
+// Dialog titles and code snippets only: not worth a preload on every page.
 const ntype = localFont({
   src: "./fonts/ntype82_bold.ttf",
   variable: "--font-ntype",
   weight: "700",
   display: "swap",
+  preload: false,
 });
 const nmono = localFont({
   src: "./fonts/ntype_mono.otf",
   variable: "--font-nmono",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {

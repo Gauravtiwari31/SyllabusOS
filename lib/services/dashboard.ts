@@ -52,16 +52,14 @@ async function recentMistakeCounts(goalId: string, now: Date): Promise<Map<strin
 }
 
 async function sessionAggregates(goalId: string) {
-  const [completed, minutes] = await Promise.all([
-    db.session.count({ where: { goalId, status: "completed" } }),
-    db.session.findMany({
-      where: { goalId, status: "completed" },
-      select: { actualMin: true, plannedMin: true },
-    }),
-  ]);
+  // One query: the rows give both the count and the minutes.
+  const sessions = await db.session.findMany({
+    where: { goalId, status: "completed" },
+    select: { actualMin: true, plannedMin: true },
+  });
   // A completed session without a measured duration counts its planned minutes.
-  const minutesStudied = minutes.reduce((s, x) => s + (x.actualMin ?? x.plannedMin), 0);
-  return { completed, minutesStudied };
+  const minutesStudied = sessions.reduce((s, x) => s + (x.actualMin ?? x.plannedMin), 0);
+  return { completed: sessions.length, minutesStudied };
 }
 
 /** Everything the dashboard renders, in one round of parallel queries. */
