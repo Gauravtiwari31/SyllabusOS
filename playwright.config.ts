@@ -13,7 +13,10 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? "github" : "list",
+  // CI: one line per test as it finishes (the github reporter alone buffers its progress dots
+  // on one line, so a stall shows nothing), and a hard cap so a stall fails fast.
+  reporter: process.env.CI ? [["list"], ["github"]] : "list",
+  globalTimeout: process.env.CI ? 10 * 60_000 : undefined,
   use: {
     baseURL,
     channel: process.env.PW_CHANNEL || undefined,
@@ -35,6 +38,7 @@ export default defineConfig({
         command: `pnpm start --port ${PORT}`,
         // auth.ts trusts the Host header only on Vercel, in dev, or when told to.
         env: { AUTH_TRUST_HOST: "true" },
+        stdout: "pipe",
         url: baseURL,
         reuseExistingServer: true,
         timeout: 120_000,

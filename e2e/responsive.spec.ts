@@ -72,7 +72,9 @@ for (const [screen, viewport] of Object.entries(SCREENS) as [Screen, (typeof SCR
 
     test("study-now title stays inside its tile", async ({ page }) => {
       await page.goto("/dashboard");
-      const title = page.locator("#study-now-concept");
+      // While React streams the page, a hidden copy of the tile can briefly coexist with the
+      // shown one; only the visible copy counts.
+      const title = page.locator("#study-now-concept").filter({ visible: true });
       await expect(title).toBeVisible();
       const fits = await title.evaluate((el) => {
         const tile = el.closest(".nu-tile")!.getBoundingClientRect();
@@ -91,7 +93,7 @@ test.describe("study session on a phone", () => {
     await page.goto(await firstLearnHref(page));
     await expect(page.locator(".nu-tabbar")).toBeHidden();
 
-    const reply = page.getByLabel("Your reply");
+    const reply = page.getByLabel("Your reply").filter({ visible: true });
     await expect(reply).toBeInViewport();
 
     const text = "Two operations conflict when different transactions touch the same item and one writes.";
