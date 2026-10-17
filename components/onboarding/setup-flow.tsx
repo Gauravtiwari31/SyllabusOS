@@ -15,7 +15,7 @@ import {
   uploadPyqAction,
 } from "@/app/actions/onboarding";
 import { skipDiagnostic } from "@/app/actions/diagnostic";
-import { ConceptGraph } from "@/components/concept-graph";
+import { LazyConceptGraph as ConceptGraph } from "@/components/concept-graph/lazy";
 import { DotBar, DotLoader, Tile, TileHeader } from "@/components/nu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

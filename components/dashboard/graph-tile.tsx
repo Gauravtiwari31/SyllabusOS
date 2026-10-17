@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import type { ConceptGraphData } from "@/lib/types";
 import type { MasteryBand } from "@/lib/engine/types";
-import { ConceptGraph } from "@/components/concept-graph";
+import { LazyConceptGraph as ConceptGraph } from "@/components/concept-graph/lazy";
 import { BAND_LABEL, Dot, EmptyState, Meta, Tile, TileHeader } from "@/components/nu";
 import { cn } from "@/lib/utils";
 

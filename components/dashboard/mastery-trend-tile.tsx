@@ -1,41 +1,16 @@
 "use client";
 // MASTERY TREND — weightage-weighted mastery per day. Monochrome line, one accent
 // dot on today's value, dotted grid. Seeded history is flagged as demo data.
-import {
-  CartesianGrid,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  type TooltipContentProps,
-} from "recharts";
+import { lazy, Suspense } from "react";
 import type { MasteryTrendPoint } from "@/lib/types";
+import type { ChartPoint } from "./mastery-trend-chart";
 import { Chip, EmptyState, Meta, Stat, SubStat, Tile, TileHeader, pct } from "@/components/nu";
 import { formatDay } from "@/components/plan/format";
 import { cn } from "@/lib/utils";
 
-interface ChartPoint {
-  date: string;
-  label: string;
-  value: number;
-  isDemo: boolean;
-}
-
-const TICK = { fill: "var(--nu-dim)", fontSize: 11, fontFamily: "var(--ui-font)" };
-
-function TrendTooltip({ active, payload }: Pick<TooltipContentProps, "active" | "payload">) {
-  const point = payload?.[0]?.payload as ChartPoint | undefined;
-  if (!active || !point) return null;
-  return (
-    <div className="flex flex-col gap-1 rounded-[var(--nu-radius-sm)] border border-border bg-popover px-3 py-2">
-      <Meta className="text-[11px]">{formatDay(point.date)}</Meta>
-      <span className="text-base font-semibold leading-none tabular-nums">{point.value}%</span>
-      {point.isDemo && <Meta className="text-[10px]">demo data</Meta>}
-    </div>
-  );
-}
+const MasteryTrendChart = lazy(() =>
+  import("./mastery-trend-chart").then((m) => ({ default: m.MasteryTrendChart })),
+);
 
 export function MasteryTrendTile({ points, className }: { points: MasteryTrendPoint[]; className?: string }) {
   const data: ChartPoint[] = points.map((p) => ({
@@ -48,7 +23,6 @@ export function MasteryTrendTile({ points, className }: { points: MasteryTrendPo
   const last = points.at(-1);
   const first = points[0];
   const delta = last && first ? last.mastery - first.mastery : 0;
-  const lastIndex = data.length - 1;
 
   return (
     <Tile className={cn("gap-4", className)}>
@@ -79,53 +53,9 @@ export function MasteryTrendTile({ points, className }: { points: MasteryTrendPo
             )}
           </div>
           <div className="h-[180px] w-full" aria-hidden>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -18 }}>
-                <CartesianGrid vertical={false} stroke="var(--nu-line)" strokeDasharray="2 4" />
-                <XAxis
-                  dataKey="label"
-                  tick={TICK}
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={24}
-                />
-                <YAxis
-                  domain={[0, 100]}
-                  ticks={[0, 50, 100]}
-                  tick={TICK}
-                  tickLine={false}
-                  axisLine={false}
-                  width={44}
-                />
-                <Tooltip
-                  content={TrendTooltip}
-                  cursor={{ stroke: "var(--nu-line)", strokeWidth: 1 }}
-                  isAnimationActive={false}
-                />
-                <Line
-                  type="linear"
-                  dataKey="value"
-                  stroke="var(--foreground)"
-                  strokeWidth={2}
-                  isAnimationActive={false}
-                  activeDot={{ r: 4, fill: "var(--foreground)", stroke: "var(--nu-tile)", strokeWidth: 2 }}
-                  dot={({ cx, cy, index }) =>
-                    index === lastIndex && cx != null && cy != null ? (
-                      <circle
-                        key="last"
-                        cx={cx}
-                        cy={cy}
-                        r={5}
-                        fill="var(--nu-accent)"
-                        stroke="var(--nu-tile)"
-                        strokeWidth={2}
-                      />
-                    ) : null
-                  }
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <Suspense fallback={null}>
+              <MasteryTrendChart data={data} />
+            </Suspense>
           </div>
           <table className="sr-only">
             <caption>Mastery by day{hasDemo ? " (includes demo data)" : ""}</caption>

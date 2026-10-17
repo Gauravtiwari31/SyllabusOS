@@ -2,9 +2,10 @@
 // /graph: the whole concept graph with a details panel. Phones get a list view (panning a
 // 30-node graph on a small screen is poor UX) and the details open as a bottom sheet.
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { ArrowRight, List, Network } from "lucide-react";
-import { ConceptGraph, GraphLegend } from "@/components/concept-graph";
+import { GraphPlaceholder, LazyConceptGraph as ConceptGraph } from "@/components/concept-graph/lazy";
+import { GraphLegend } from "@/components/concept-graph/legend";
 import { BAND_LABEL, DotBar, MasteryReadout, Tile, TileHeader, pct } from "@/components/nu";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -93,9 +94,28 @@ function ConceptDetails({
   );
 }
 
+// Phones (portrait, or landscape with little height) open on the list; the graph is one tap away.
+const SMALL_SCREEN = "(max-width: 639px), (orientation: landscape) and (max-height: 520px)";
+
+function subscribeSmallScreen(onChange: () => void) {
+  const mq = window.matchMedia(SMALL_SCREEN);
+  mq.addEventListener("change", onChange);
+  return () => mq.removeEventListener("change", onChange);
+}
+
+const GRAPH_HEIGHT = "min(70vh, 640px)";
+
 export function GraphExplorer({ data, recommendedId }: { data: ConceptGraphData; recommendedId: string | null }) {
   const [selectedId, setSelectedId] = useState<string | null>(recommendedId);
-  const [view, setView] = useState<"graph" | "list">("graph");
+  // null until the student picks a view; the screen size decides until then. The server
+  // can't know the screen, so it renders a placeholder and the client picks after hydration.
+  const [picked, setPicked] = useState<"graph" | "list" | null>(null);
+  const smallScreen = useSyncExternalStore(
+    subscribeSmallScreen,
+    () => window.matchMedia(SMALL_SCREEN).matches,
+    () => null,
+  );
+  const view = picked ?? (smallScreen === null ? null : smallScreen ? "list" : "graph");
   const [sheetOpen, setSheetOpen] = useState(false);
   const selected = data.nodes.find((n) => n.id === selectedId) ?? null;
 
@@ -122,7 +142,7 @@ export function GraphExplorer({ data, recommendedId }: { data: ConceptGraphData;
                 key={key}
                 type="button"
                 aria-pressed={view === key}
-                onClick={() => setView(key)}
+                onClick={() => setPicked(key)}
                 className={cn(
                   "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium pointer-coarse:h-10",
                   view === key ? "bg-accent text-foreground" : "text-muted-foreground hover:text-foreground",
@@ -135,12 +155,14 @@ export function GraphExplorer({ data, recommendedId }: { data: ConceptGraphData;
           </div>
         </div>
 
-        {view === "graph" ? (
+        {view === null ? (
+          <GraphPlaceholder height={GRAPH_HEIGHT} className="min-h-[360px]" />
+        ) : view === "graph" ? (
           <div className="relative">
             <ConceptGraph
               data={data}
               highlightId={selectedId}
-              height="min(70vh, 640px)"
+              height={GRAPH_HEIGHT}
               onNodeClick={select}
               className="min-h-[360px]"
             />
