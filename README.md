@@ -55,17 +55,18 @@ pnpm dev                             # http://localhost:3000
 | `GOOGLE_GENERATIVE_AI_API_KEY` | no | Without it the app runs in offline mode. |
 | `GEMINI_MODEL_FAST`, `GEMINI_MODEL_STRONG`, `GEMINI_MODEL_FALLBACK`, `GEMINI_EMBED_MODEL` | no | Model ids; `GEMINI_MODEL_FALLBACK` may be a comma-separated list. |
 | `BLOB_READ_WRITE_TOKEN` | no | PDFs up to 20 MB (instead of 4 MB) upload from the browser straight to a **private** Vercel Blob store and the originals are kept there. Larger PDFs are read on the device either way. |
-| `ANDROID_PACKAGE_NAME`, `ANDROID_SHA256_CERT_FINGERPRINTS` | no | Serve `/.well-known/assetlinks.json` for the Android app. |
+| `ANDROID_PACKAGE_NAME`, `ANDROID_SHA256_CERT_FINGERPRINTS` | no | Extra entries for `/.well-known/assetlinks.json` (e.g. Google Play's signing key). The app's own package and keys are built in. |
 
 ## Scripts
 
 | Command | What it does |
 |---|---|
 | `pnpm dev` / `pnpm build` / `pnpm start` | Next.js |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint, `tsc`, Vitest (engine, AI guard, offline tutor, RAG, demo bank) |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` | ESLint, `tsc`, Vitest (engine, AI guard, offline tutor, RAG, demo bank, Android app links) |
+| `pnpm test:e2e` | Playwright on phone (portrait and landscape), tablet, laptop and desktop sizes against `pnpm start` (build first). `PW_CHANNEL=msedge` or `chrome` uses an installed browser; otherwise run `pnpm exec playwright install chromium` once. |
 | `pnpm db:migrate` / `pnpm db:seed` / `pnpm db:reset` | Prisma |
 
-CI (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every push and pull request, then migrates, seeds and builds against a pgvector service container.
+CI (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every push and pull request, then migrates, seeds, builds against a pgvector service container and runs the end-to-end suite on the build.
 
 ## Security
 
@@ -81,4 +82,4 @@ CI (`.github/workflows/ci.yml`) runs lint, typecheck and tests on every push and
 
 - `prisma migrate dev` always generates `DROP INDEX "Chunk_embedding_hnsw_idx"` because the HNSW index can't be expressed in the Prisma schema. Delete that line from each new migration.
 - **Deploy:** step-by-step guide for Vercel + Neon in [docs/DEPLOY_VERCEL.md](docs/DEPLOY_VERCEL.md).
-- **Android app:** the site is an installable PWA; build the APK (Trusted Web Activity) and share it with Firebase App Distribution using [docs/ANDROID.md](docs/ANDROID.md).
+- **Android app:** a Trusted Web Activity in `android/` that opens the site full screen, in portrait or landscape. Signed APKs are attached to [GitHub releases](https://github.com/Gauravtiwari31/SyllabusOS/releases); building and sharing it is in [docs/ANDROID.md](docs/ANDROID.md).
