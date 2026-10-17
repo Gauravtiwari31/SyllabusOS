@@ -45,7 +45,7 @@ export function StudyNowTile({
   const alternatives = r.alternatives.slice(0, 3);
 
   return (
-    <Tile accent className={cn(hero ? "gap-6" : "gap-4", className)} aria-labelledby="study-now-concept">
+    <Tile accent className={cn("@container", hero ? "gap-6" : "gap-4", className)} aria-labelledby="study-now-concept">
       <TileHeader
         label="Study now"
         live
@@ -58,14 +58,18 @@ export function StudyNowTile({
         }
       />
 
-      <div className={cn("flex flex-col gap-4", hero && "sm:flex-row sm:items-end sm:justify-between sm:gap-8")}>
+      {/* Laid out by the tile's own width, not the viewport: the hero sits in a full-width,
+          half-width or third-width column depending on the screen, and a long concept name
+          next to the big minutes numeral used to break mid-word. */}
+      <div className={cn("flex flex-col gap-4", hero && "@[30rem]:flex-row @[30rem]:items-end @[30rem]:justify-between @[30rem]:gap-8")}>
         <div className="flex min-w-0 flex-col gap-2">
           <Meta>{r.unit}</Meta>
           <h3
             id="study-now-concept"
+            lang="en"
             className={cn(
-              "font-semibold leading-tight tracking-[-0.01em] text-balance break-words",
-              hero ? "text-[28px] sm:text-[40px]" : "text-xl sm:text-2xl",
+              "font-semibold leading-tight tracking-[-0.01em] text-balance break-words hyphens-auto",
+              hero ? "text-[28px] @[30rem]:text-[34px] @[38rem]:text-[40px]" : "text-xl sm:text-2xl",
             )}
           >
             {r.conceptName}
