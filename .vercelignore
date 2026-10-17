@@ -1,2 +1,4 @@
-# The Android (TWA) wrapper is built locally with Bubblewrap; the website doesn't need it.
-android/
+# The Android (TWA) wrapper is built locally with Gradle; the website doesn't need it.
+# Anchored to the repo root: an unanchored "android/" would also drop app/api/android/
+# (the Digital Asset Links route) from every deployment.
+/android/
