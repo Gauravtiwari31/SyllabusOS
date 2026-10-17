@@ -62,8 +62,21 @@ jobs:
       - run: pnpm db:seed
       - run: pnpm build
       # Responsive end-to-end checks against the build (offline AI mode, no keys needed).
+      # The server runs in its own step: Playwright's webServer teardown can't stop the
+      # `next start` child of `pnpm start` and waits on its open pipe until the run times out.
       - run: pnpm exec playwright install --with-deps chromium
+      - name: Start the app
+        run: |
+          pnpm start --port 3100 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3100/login && exit 0; sleep 1; done
+          cat next.log; exit 1
+        env:
+          AUTH_TRUST_HOST: "true"
       - run: pnpm test:e2e
+        env:
+          E2E_BASE_URL: http://localhost:3100
+      - if: failure()
+        run: cat next.log || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
