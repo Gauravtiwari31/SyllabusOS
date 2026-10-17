@@ -2,7 +2,7 @@
 
 Upload your syllabus, notes and previous-year papers. SyllabusOS finds your weak concepts, decides what you should study next and why, then teaches it Socratically — and every answer you give updates the plan.
 
-Built by Team Crazy Coders for Horizon by Hoollow (Round 1, theme: AI with Education). Product and design notes: [idea.md](idea.md), [stack.md](stack.md), [docs/](docs/).
+Product and design notes: [idea.md](idea.md), [stack.md](stack.md), [docs/](docs/).
 
 ## What it does
 

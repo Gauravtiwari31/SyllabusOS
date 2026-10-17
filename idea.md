@@ -1,6 +1,6 @@
-# SyllabusOS — Team Crazy Coders
+# SyllabusOS
 
-**Horizon by Hoollow · Round 1 (Online MVP) · Theme: AI with Education**
+**Theme:** AI with Education
 **Categories:** Education · Student Life · Productivity
 
 > **Tagline:** Knows what you don't know. Teaches it without doing it for you.
@@ -180,7 +180,7 @@ Rule: real product, real syllabus. Seeded history is labelled as demo data. No f
 
 ---
 
-## 9. Mapping to Horizon judging
+## 9. Mapping to the judging criteria
 
 | Criterion | Our answer |
 |---|---|

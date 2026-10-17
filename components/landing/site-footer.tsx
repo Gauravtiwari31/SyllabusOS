@@ -26,7 +26,7 @@ export function SiteFooter({ signedIn }: { signedIn: boolean }) {
 
       <div className="flex flex-col gap-4 border-t border-border py-8 sm:flex-row sm:items-center sm:justify-between">
         <Logo href="/" />
-        <p className="nu-meta">© 2026 SyllabusOS · Built by Team Crazy Coders</p>
+        <p className="nu-meta">© 2026 SyllabusOS</p>
       </div>
     </footer>
   );

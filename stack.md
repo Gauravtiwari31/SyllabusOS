@@ -1,4 +1,4 @@
-# SyllabusOS — Tech Stack (Team Crazy Coders)
+# SyllabusOS — Tech Stack
 
 **Principle:** one language (TypeScript), one app (Next.js), one database (Postgres), one LLM provider. Every extra service is another thing that can break during the live demo.
 

@@ -43,7 +43,7 @@ Answer the prompts:
 | Domain | `<your-domain>` |
 | URL path | `/dashboard` |
 | Application name / Short name | `SyllabusOS` |
-| Application ID | `com.crazycoders.syllabusos` (**can never change after you publish**) |
+| Application ID | `com.syllabusos.app` (**can never change after you publish**) |
 | Display mode | `standalone` |
 | Orientation | `portrait` |
 | Status bar / navigation / splash colours | `#000000` |
@@ -77,7 +77,7 @@ Copy the `SHA256` value (32 pairs like `14:6D:E9:…`). In Vercel → Settings �
 
 | Name | Value |
 |---|---|
-| `ANDROID_PACKAGE_NAME` | `com.crazycoders.syllabusos` |
+| `ANDROID_PACKAGE_NAME` | `com.syllabusos.app` |
 | `ANDROID_SHA256_CERT_FINGERPRINTS` | the SHA256 value (more than one? separate with commas) |
 
 Redeploy, then open `https://<your-domain>/.well-known/assetlinks.json`: it should show your package name and fingerprint (it shows `[]` until both variables are set).
@@ -95,7 +95,7 @@ The app should open full screen with no address bar. If a URL bar shows, the fin
 ## 5. Share with testers: Firebase App Distribution (free, Spark plan)
 
 1. [Firebase console](https://console.firebase.google.com) → **Add project** (Analytics optional).
-2. **Add app → Android** → package name `com.crazycoders.syllabusos` → register. Skip the SDK and `google-services.json` steps; the app doesn't need them.
+2. **Add app → Android** → package name `com.syllabusos.app` → register. Skip the SDK and `google-services.json` steps; the app doesn't need them.
 3. **Release & Monitor → App Distribution → Get started**.
 4. Drag in `app-release-signed.apk`, add testers' emails (or a tester group), add release notes, **Distribute**.
 

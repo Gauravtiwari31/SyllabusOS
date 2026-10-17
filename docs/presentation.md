@@ -3,7 +3,7 @@ marp: true
 theme: default
 size: 16:9
 paginate: true
-footer: "SyllabusOS · Team Crazy Coders · Horizon by Hoollow — Round 1"
+footer: "SyllabusOS"
 style: |
   section {
     font-family: "Segoe UI", Arial, sans-serif;
@@ -47,12 +47,12 @@ style: |
 
 Upload your syllabus, notes and previous-year papers. SyllabusOS finds your weak concepts, decides what to study next and **why**, then teaches it Socratically — and every answer updates the plan.
 
-**Team Crazy Coders** · Horizon by Hoollow — Round 1 (Online MVP) · Theme: AI with Education
+**Theme:** AI with Education
 
 <!--
 Speaker notes (≈20 s):
 Open with the hook: "Every student has a syllabus, a deadline, and a chatbot that will do their homework for them. None of that makes them pass."
-Then the one-liner on the slide. We are Team Crazy Coders; the categories are Education, Student Life and Productivity.
+Then the one-liner on the slide. The categories are Education, Student Life and Productivity.
 -->
 
 ---
